@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Map Measurement Tool By Tofazzal</title>
+    <title>Advanced Image Measurement Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -61,7 +61,8 @@
         }
         .magnifier {
             position: absolute;
-            /* No fixed top/right, will be positioned by JS */
+            top: 10px; /* Fixed position from top */
+            right: 10px; /* Fixed position from right */
             width: 150px;
             height: 150px;
             border: 2px solid #3b82f6; /* Blue-500 */
@@ -72,6 +73,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2); /* Soft shadow */
             background-color: white; /* Fallback for transparency */
             display: none; /* Hidden by default */
+            /* Removed transform: translate(-50%, -50%); as it's not needed for fixed position */
         }
         #measurements-sidebar {
             width: 300px;
@@ -344,7 +346,9 @@
         // Helper to draw a circle point
         function drawPoint(context, x, y, currentZoom) {
             context.beginPath();
-            context.arc(x, y, (HIT_RADIUS / 2) / currentZoom, 0, Math.PI * 2); // Radius scales inversely with zoom
+            // Point radius now scales based on lineWidthInput.value
+            const pointRadius = (parseFloat(lineWidthInput.value) * 1.5 + HIT_RADIUS / 2) / currentZoom;
+            context.arc(x, y, pointRadius, 0, Math.PI * 2);
             context.fill();
         }
 
@@ -440,7 +444,6 @@
             // Apply global line width and font size from UI
             const currentLineWidth = parseFloat(lineWidthInput.value);
             const currentFontSize = parseFloat(fontSizeInput.value);
-            const showArrows = false; // Show arrows checkbox removed, always false
 
             // Draw existing measurements
             measurements.forEach((m) => {
@@ -456,7 +459,6 @@
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
-                    // Arrows are not drawn
                     drawPoint(ctx, p1.x, p1.y, zoom);
                     drawPoint(ctx, p2.x, p2.y, zoom);
                     if (m.value) {
@@ -626,7 +628,6 @@
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
-                    // Arrows are not drawn
                     drawPoint(ctx, p1.x, p1.y, zoom);
                     drawPoint(ctx, p2.x, p2.y, zoom);
                 } else if (mode === 'rectangle') {
@@ -918,8 +919,8 @@
 
             // Position the magnifier DIV so its center is at the current pointer location
             if (magnifierDiv.style.display === 'block') {
-                magnifierDiv.style.left = `${e.clientX - (MAGNIFIER_SIZE / 2)}px`;
-                magnifierDiv.style.top = `${e.clientY - (MAGNIFIER_SIZE / 2)}px`;
+                magnifierDiv.style.left = `${e.clientX}px`;
+                magnifierDiv.style.top = `${e.clientY}px`;
             }
 
             const { x: currentCanvasX, y: currentCanvasY } = getCanvasCoords(e.clientX, e.clientY);
@@ -1107,8 +1108,8 @@
                 lastPointerClientX = e.touches[0].clientX;
                 lastPointerClientY = e.touches[0].clientY;
                 // Position the magnifier DIV so its center is at the current pointer location
-                magnifierDiv.style.left = `${e.touches[0].clientX - (MAGNIFIER_SIZE / 2)}px`;
-                magnifierDiv.style.top = `${e.touches[0].clientY - (MAGNIFIER_SIZE / 2)}px`;
+                magnifierDiv.style.left = `${e.touches[0].clientX}px`;
+                magnifierDiv.style.top = `${e.touches[0].clientY}px`;
             }
 
             if (e.touches.length === 2) {
