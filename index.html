@@ -74,7 +74,7 @@
         .magnifier {
             position: absolute;
             top: 10px; /* Fixed position from top */
-            right: 10px; /* Fixed position from right */
+            left: 10px; /* Fixed position from left */
             width: 150px;
             height: 150px;
             border: 2px solid #3b82f6; /* Blue-500 */
@@ -281,7 +281,7 @@
         const drawLineBtn = document.getElementById('drawLineBtn');
         const drawRectangleBtn = document.getElementById('drawRectangleBtn');
         const drawPolygonBtn = document.getElementById('drawPolygonBtn');
-        const drawAngleBtn = document = document.getElementById('drawAngleBtn'); // FIX: Corrected typo document = document.getElementById
+        const drawAngleBtn = document.getElementById('drawAngleBtn'); // Corrected typo
         const drawCircleBtn = document.getElementById('drawCircleBtn');
         const addTextBtn = document.getElementById('addTextBtn');
         const addCounterBtn = document.getElementById('addCounterBtn');
@@ -321,7 +321,7 @@
         let scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT; // Pixels per foot (dynamic)
 
         const HIT_RADIUS_BASE = 10; // Base hit radius for selecting points (in CSS pixels)
-        const MAGNIFIER_SIZE = 150; // Size of the magnifier square
+        const MAGNIFIER_SIZE = 200; // Increased size
         const MAGNIFIER_ZOOM = 3; // How much the magnifier zooms in
 
 
@@ -341,8 +341,6 @@
         // Helper: Convert screen coordinates to canvas coordinates (considering pan and zoom)
         function getCanvasCoords(clientX, clientY) {
             const rect = mainCanvas.getBoundingClientRect();
-            // clientX/Y are CSS pixels, so they don't need to be multiplied by dpr here.
-            // The canvas context itself is scaled by dpr.
             const x = (clientX - rect.left - pan.x) / zoom;
             const y = (clientY - rect.top - pan.y) / zoom;
             return { x, y };
@@ -914,7 +912,7 @@
                     m.points.forEach((p, pIdx) => {
                         const screenP = getScreenCoords(p.x, p.y);
                         // Check if pointer is within HIT_RADIUS (in CSS pixels) of the rendered point
-                        const effectiveHitRadius = (parseFloat(lineWidthInput.value) * 0.5 + HIT_RADIUS_BASE) / zoom;
+                        const effectiveHitRadius = HIT_RADIUS_BASE; // HIT_RADIUS_BASE is already in CSS pixels
                         if (Math.hypot(e.clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), e.clientY - (mainCanvas.getBoundingClientRect().top + screenP.y)) < effectiveHitRadius) {
                             selectedPoint = { measurementIndex: measIdx, pointIndex: pIdx, type: m.type };
                             currentDrawing = null; // Ensure no new drawing starts if editing
@@ -930,7 +928,7 @@
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
 
-            // Magnifier is fixed at top-right, so its position doesn't change with pointer move.
+            // Magnifier is fixed at top-left, so its position doesn't change with pointer move.
             // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
 
             const { x: currentCanvasX, y: currentCanvasY } = getCanvasCoords(e.clientX, e.clientY);
@@ -1116,7 +1114,7 @@
             if (e.touches.length === 1 && magnifierDiv.style.display === 'block') {
                 lastPointerClientX = e.touches[0].clientX;
                 lastPointerClientY = e.touches[0].clientY;
-                // Position the magnifier DIV by offsetting its top-left corner from the cursor
+                // Position the magnifier DIV based on the touch point
                 // For a fixed magnifier, its position is controlled by CSS, not JS here.
                 // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
             }
