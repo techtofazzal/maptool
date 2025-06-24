@@ -14,6 +14,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden; /* Prevent body scroll */
+            background-color: #f8fafc; /* Light background for overall beauty */
         }
         #toolbar {
             display: flex;
@@ -23,17 +24,28 @@
             background: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             z-index: 10;
+            border-bottom-left-radius: 12px; /* Rounded bottom corners */
+            border-bottom-right-radius: 12px;
         }
-        #toolbar button, #toolbar input[type="file"], #toolbar select {
-            padding: 6px 12px; /* Smaller padding for buttons */
-            font-size: 0.8rem; /* Slightly smaller font size for buttons */
+        #toolbar button, #toolbar input[type="file"] {
+            padding: 8px 16px; /* Slightly larger padding for buttons */
+            font-size: 0.875rem; /* text-sm */
             border-radius: 9999px; /* Full rounded corners */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Individual button shadow */
+            transition: all 0.2s ease-in-out;
+        }
+        #toolbar button:hover {
+            transform: translateY(-1px); /* Slight lift on hover */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         #toolbar label input[type="number"],
         #toolbar label input[type="range"] {
-            padding: 4px 8px; /* Smaller padding for inputs */
-            font-size: 0.8rem;
-            border-radius: 9999px; /* Full rounded corners */
+            padding: 6px 10px; /* Slightly larger padding for inputs */
+            font-size: 0.875rem;
+            border-radius: 8px; /* Slightly rounded corners for inputs */
+            background-color: #f1f5f9; /* Tailwind gray-100 */
+            border: 1px solid #cbd5e1; /* Tailwind gray-300 */
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); /* Inset shadow for depth */
         }
 
         #main-content {
@@ -73,7 +85,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2); /* Soft shadow */
             background-color: white; /* Fallback for transparency */
             display: none; /* Hidden by default */
-            /* Removed transform: translate(-50%, -50%); as it's not needed for fixed position */
         }
         #measurements-sidebar {
             width: 300px;
@@ -312,6 +323,8 @@
         const HIT_RADIUS = 4; // Pixels for detecting points (further reduced for smaller blue circles)
         const MAGNIFIER_SIZE = 150; // Size of the magnifier square
         const MAGNIFIER_ZOOM = 3; // How much the magnifier zooms in
+        // Removed MAGNIFIER_OFFSET_X and MAGNIFIER_OFFSET_Y as they are not needed for fixed position
+
 
         // Get device pixel ratio for high-DPI screens
         const dpr = window.devicePixelRatio || 1;
@@ -786,9 +799,10 @@
             startPoint = { clientX: e.clientX, clientY: e.clientY, x, y };
             isDragging = true;
             
-            // For magnifier positioning
+            // For magnifier positioning, update lastPointerClientX/Y
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
+
 
             if (mode === 'pan') {
                 magnifierDiv.style.display = 'none'; // Hide magnifier in pan mode
@@ -902,7 +916,8 @@
                     m.points.forEach((p, pIdx) => {
                         const screenP = getScreenCoords(p.x, p.y);
                         // Check if pointer is within HIT_RADIUS (in CSS pixels) of the rendered point
-                        if (Math.hypot(e.clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), e.clientY - (mainCanvas.getBoundingClientRect().top + screenP.y)) < HIT_RADIUS) {
+                        const effectiveHitRadius = (parseFloat(lineWidthInput.value) * 0.5 + HIT_RADIUS_BASE) / zoom;
+                        if (Math.hypot(e.clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), e.clientY - (mainCanvas.getBoundingClientRect().top + screenP.y)) < effectiveHitRadius) {
                             selectedPoint = { measurementIndex: measIdx, pointIndex: pIdx, type: m.type };
                             currentDrawing = null; // Ensure no new drawing starts if editing
                             magnifierDiv.style.display = 'block';
@@ -917,11 +932,7 @@
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
 
-            // Position the magnifier DIV so its center is at the current pointer location
-            if (magnifierDiv.style.display === 'block') {
-                magnifierDiv.style.left = `${e.clientX}px`;
-                magnifierDiv.style.top = `${e.clientY}px`;
-            }
+            // Magnifier is fixed at top-right, no need to update its position here.
 
             const { x: currentCanvasX, y: currentCanvasY } = getCanvasCoords(e.clientX, e.clientY);
 
@@ -1015,7 +1026,6 @@
                             totalLength += Math.hypot(p2.x - p1.x, p2.y - p1.y);
                         }
                         const lengthInFeet = totalLength / scaleFactorPixelsPerUnit;
-                        const lengthInMeters = lengthInFeet * 0.3048; // Not used in display string but kept for calculation consistency
                         const lengthInLinks = lengthInFeet / 0.66;
 
                         measurements.push({
@@ -1107,9 +1117,9 @@
             if (e.touches.length === 1 && magnifierDiv.style.display === 'block') {
                 lastPointerClientX = e.touches[0].clientX;
                 lastPointerClientY = e.touches[0].clientY;
-                // Position the magnifier DIV so its center is at the current pointer location
-                magnifierDiv.style.left = `${e.touches[0].clientX}px`;
-                magnifierDiv.style.top = `${e.touches[0].clientY}px`;
+                // Position the magnifier DIV by offsetting its top-left corner from the cursor
+                // For a fixed magnifier, its position is controlled by CSS, not JS here.
+                // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
             }
 
             if (e.touches.length === 2) {
@@ -1357,16 +1367,18 @@
                 'freehand': 'bg-gray-600'
             };
             if (mode !== 'pan') {
-                const activeButton = document.getElementById(mode + 'Btn');
+                let activeButton;
+                if (mode === 'text') {
+                    activeButton = addTextBtn;
+                } else if (mode === 'counter') {
+                    activeButton = addCounterBtn;
+                } else {
+                    activeButton = document.getElementById(mode + 'Btn');
+                }
+                
                 if (activeButton) {
                     activeButton.classList.remove(activeColor[mode].replace('600', '500')); // Remove 500 version
                     activeButton.classList.add(activeColor[mode]); // Add 600 version
-                } else if (mode === 'text' || mode === 'counter') { // For text/counter, use their specific button IDs
-                    const specificButton = document.getElementById(`add${mode === 'text' ? 'Text' : 'Counter'}Btn`);
-                    if (specificButton) {
-                         specificButton.classList.remove(activeColor[mode].replace('600', '500'));
-                         specificButton.classList.add(activeColor[mode]);
-                    }
                 }
             }
         }
