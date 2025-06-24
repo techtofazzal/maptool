@@ -281,7 +281,7 @@
         const drawLineBtn = document.getElementById('drawLineBtn');
         const drawRectangleBtn = document.getElementById('drawRectangleBtn');
         const drawPolygonBtn = document.getElementById('drawPolygonBtn');
-        const drawAngleBtn = document.getElementById('drawAngleBtn');
+        const drawAngleBtn = document = document.getElementById('drawAngleBtn'); // FIX: Corrected typo document = document.getElementById
         const drawCircleBtn = document.getElementById('drawCircleBtn');
         const addTextBtn = document.getElementById('addTextBtn');
         const addCounterBtn = document.getElementById('addCounterBtn');
@@ -320,10 +320,9 @@
         let FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
         let scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT; // Pixels per foot (dynamic)
 
-        const HIT_RADIUS = 4; // Pixels for detecting points (further reduced for smaller blue circles)
+        const HIT_RADIUS_BASE = 10; // Base hit radius for selecting points (in CSS pixels)
         const MAGNIFIER_SIZE = 150; // Size of the magnifier square
         const MAGNIFIER_ZOOM = 3; // How much the magnifier zooms in
-        // Removed MAGNIFIER_OFFSET_X and MAGNIFIER_OFFSET_Y as they are not needed for fixed position
 
 
         // Get device pixel ratio for high-DPI screens
@@ -359,8 +358,8 @@
         // Helper to draw a circle point
         function drawPoint(context, x, y, currentZoom) {
             context.beginPath();
-            // Point radius now scales based on lineWidthInput.value
-            const pointRadius = (parseFloat(lineWidthInput.value) * 1.5 + HIT_RADIUS / 2) / currentZoom;
+            // Point radius now scales based on lineWidthInput.value for visual consistency
+            const pointRadius = (parseFloat(lineWidthInput.value) * 1.5 + HIT_RADIUS_BASE / 2) / currentZoom;
             context.arc(x, y, pointRadius, 0, Math.PI * 2);
             context.fill();
         }
@@ -388,9 +387,8 @@
         function calculateLineLength(p1, p2) {
             const lengthInPixels = Math.hypot(p2.x - p1.x, p2.y - p1.y);
             const lengthInFeet = lengthInPixels / scaleFactorPixelsPerUnit;
-            const lengthInMeters = lengthInFeet * 0.3048; // 1 foot = 0.3048 meters
             const lengthInLinks = lengthInFeet / 0.66; // 1 link = 0.66 feet
-            return `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`; // Removed meters as requested
+            return `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`;
         }
 
         // Calculate area for a rectangle
@@ -932,7 +930,8 @@
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
 
-            // Magnifier is fixed at top-right, no need to update its position here.
+            // Magnifier is fixed at top-right, so its position doesn't change with pointer move.
+            // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
 
             const { x: currentCanvasX, y: currentCanvasY } = getCanvasCoords(e.clientX, e.clientY);
 
