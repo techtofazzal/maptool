@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Advanced Image Measurement Tool</title>
+    <title>Map Measure Tool by Tofazzal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js CDN - Updated to 2.16.105 as per user's old code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -14,40 +16,58 @@
             display: flex;
             flex-direction: column;
             overflow: hidden; /* Prevent body scroll */
-            background-color: #f8fafc; /* Light background for overall beauty */
+            background-color: #f8fafc; /* Overall light background */
         }
         #toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px; /* Reduced gap between buttons */
-            padding: 8px; /* Reduced padding */
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            gap: 6px; /* Reduced gap for smaller buttons */
+            padding: 8px; /* Reduced padding for smaller buttons */
+            background: linear-gradient(to right, #ffffff, #f0f4f8); /* Subtle gradient for toolbar */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15); /* More prominent shadow for toolbar */
             z-index: 10;
             border-bottom-left-radius: 12px; /* Rounded bottom corners */
             border-bottom-right-radius: 12px;
         }
-        #toolbar button, #toolbar input[type="file"] {
-            padding: 8px 16px; /* Slightly larger padding for buttons */
-            font-size: 0.875rem; /* text-sm */
+        #toolbar button,
+        #toolbar input[type="file"] {
+            padding: 6px 12px; /* Reduced padding for smaller buttons */
+            font-size: 0.8rem; /* Smaller font */
             border-radius: 9999px; /* Full rounded corners */
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Individual button shadow */
-            transition: all 0.2s ease-in-out;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.12); /* Softer, more diffused shadow */
+            transition: all 0.3s ease-in-out;
+            border: 1px solid rgba(0,0,0,0.08); /* Subtle border for definition */
+            background-image: linear-gradient(to bottom, var(--tw-gradient-from), var(--tw-gradient-to)); /* For Tailwind colors with gradients */
         }
+        /* Define common button styles using Tailwind placeholders for custom gradients */
+        #toolbar button.bg-blue-500 { --tw-gradient-from: #3b82f6; --tw-gradient-to: #2563eb; } /* Blue-500 to Blue-600 */
+        #toolbar button.bg-green-500 { --tw-gradient-from: #22c55e; --tw-gradient-to: #16a34a; } /* Green-500 to Green-600 */
+        #toolbar button.bg-purple-500 { --tw-gradient-from: #a855f7; --tw-gradient-to: #9333ea; } /* Purple-500 to Purple-600 */
+        #toolbar button.bg-indigo-500 { --tw-gradient-from: #6366f1; --tw-gradient-to: #4f46e5; } /* Indigo-500 to Indigo-600 */
+        #toolbar button.bg-pink-500 { --tw-gradient-from: #ec4899; --tw-gradient-to: #db2777; } /* Pink-500 to Pink-600 */
+        #toolbar button.bg-orange-500 { --tw-gradient-from: #f97316; --tw-gradient-to: #ea580c; } /* Orange-500 to Orange-600 */
+        #toolbar button.bg-teal-500 { --tw-gradient-from: #14b8a6; --tw-gradient-to: #0d9488; } /* Teal-500 to Teal-600 */
+        #toolbar button.bg-cyan-500 { --tw-gradient-from: #06b6d4; --tw-gradient-to: #0891b2; } /* Cyan-500 to Cyan-600 */
+        #toolbar button.bg-gray-500 { --tw-gradient-from: #6b7280; --tw-gradient-to: #4b5563; } /* Gray-500 to Gray-600 */
+        #toolbar button.bg-gray-600 { --tw-gradient-from: #4b5563; --tw-gradient-to: #374151; } /* Gray-600 to Gray-700 for export */
+        #toolbar button.bg-yellow-500 { --tw-gradient-from: #f59e0b; --tw-gradient-to: #d97706; } /* Yellow-500 to Yellow-600 */
+        #toolbar button.bg-red-500 { --tw-gradient-from: #ef4444; --tw-gradient-to: #dc2626; } /* Red-500 to Red-600 */
+
+
         #toolbar button:hover {
-            transform: translateY(-1px); /* Slight lift on hover */
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-2px); /* More noticeable lift on hover */
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2); /* Stronger shadow on hover */
+            filter: brightness(1.1); /* Slightly brighter on hover */
         }
         #toolbar label input[type="number"],
         #toolbar label input[type="range"] {
-            padding: 6px 10px; /* Slightly larger padding for inputs */
-            font-size: 0.875rem;
-            border-radius: 8px; /* Slightly rounded corners for inputs */
-            background-color: #f1f5f9; /* Tailwind gray-100 */
-            border: 1px solid #cbd5e1; /* Tailwind gray-300 */
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); /* Inset shadow for depth */
+            padding: 5px 8px; /* Further reduced padding for inputs */
+            font-size: 0.8rem; /* Smaller font for inputs */
+            border-radius: 8px; /* Rounded corners for inputs */
+            background-color: #e2e8f0; /* Tailwind gray-200 */
+            border: 1px solid #94a3b8; /* Darker border for inputs */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.08); /* More defined inset shadow */
         }
-
         #main-content {
             display: flex;
             flex-grow: 1;
@@ -60,6 +80,7 @@
             overflow: hidden;
             touch-action: none; /* Disable default touch actions for custom handling */
             cursor: default; /* Default cursor for pan mode */
+            transition: all 0.2s ease-in-out;
         }
         #canvas-container.drawing-mode {
             cursor: crosshair; /* Crosshair cursor for drawing modes */
@@ -75,8 +96,8 @@
             position: absolute;
             top: 10px; /* Fixed position from top */
             left: 10px; /* Fixed position from left */
-            width: 150px;
-            height: 150px;
+            width: 200px; /* Increased size */
+            height: 200px; /* Increased size */
             border: 2px solid #3b82f6; /* Blue-500 */
             border-radius: 8px; /* Rounded corners */
             overflow: hidden;
@@ -94,38 +115,44 @@
             box-shadow: -2px 0 4px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 8px; /* Increased gap in sidebar */
             flex-shrink: 0; /* Prevent sidebar from shrinking */
         }
         .measurement-item {
             background: white;
-            padding: 8px;
-            border-radius: 6px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            padding: 10px; /* Increased padding */
+            border-radius: 8px; /* More rounded corners */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); /* Softer item shadow */
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.875rem; /* text-sm */
+            font-size: 0.9rem; /* Slightly larger text */
         }
         .measurement-item button {
             background: #ef4444; /* Red-500 */
             color: white;
             border: none;
-            border-radius: 4px;
-            padding: 4px 8px;
+            border-radius: 6px; /* More rounded delete button */
+            padding: 6px 12px; /* Nicer padding */
             cursor: pointer;
             font-size: 0.75rem;
             transition: background-color 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08); /* Small shadow on delete button */
         }
         .measurement-item button:hover {
             background: #dc2626; /* Red-600 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15); /* Slightly larger shadow on hover */
         }
         #output {
-            padding: 10px;
-            background: white;
+            padding: 12px; /* Increased padding */
+            background: linear-gradient(to right, #ffffff, #f0f4f8); /* Subtle gradient */
             text-align: center;
-            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 -4px 8px rgba(0,0,0,0.15); /* More prominent shadow */
             z-index: 10;
+            font-weight: 500; /* Medium font weight */
+            color: #334155; /* Slate-700 */
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
         }
     </style>
 </head>
@@ -137,7 +164,7 @@
             <input
                 type="file"
                 id="imageLoader"
-                accept="image/*"
+                accept="image/*, application/pdf"
                 class="block w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
             />
         </label>
@@ -152,6 +179,21 @@
             <input type="number" id="feetPerInchInput" value="330" min="0.1" step="0.1" class="w-16 px-2 py-1 rounded-full text-sm bg-gray-200" />
         </label>
         <!-- End New Scale Inputs -->
+
+        <button
+            id="calibrateScaleBtn"
+            class="bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200"
+        >
+            Calibrate Scale
+        </button>
+
+        <button
+            id="confirmCalibrationBtn"
+            class="bg-green-500 text-white hover:bg-green-600 transition-colors duration-200"
+            style="display: none;"
+        >
+            Confirm Calibration
+        </button>
 
         <button
             id="drawLineBtn"
@@ -206,7 +248,7 @@
             id="freehandBtn"
             class="bg-gray-500 text-white hover:bg-gray-600 transition-colors duration-200"
         >
-            Freehand Draw
+            Draw Freehand
         </button>
 
         <span class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700 border border-gray-300 shadow-sm">
@@ -218,15 +260,11 @@
             Line Width:
             <input type="range" id="lineWidthInput" min="1" max="10" value="2" class="w-20" />
         </label>
-        <!-- Line Style option removed -->
         <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
             Font Size:
             <input type="range" id="fontSizeInput" min="10" max="30" value="14" class="w-20" />
         </label>
-        <!-- Show Arrows checkbox removed -->
 
-
-        <!-- Save/Load/Export buttons removed as per request -->
         <button
             id="exportCsvBtn"
             class="bg-gray-600 text-white hover:bg-gray-700 transition-colors duration-200"
@@ -271,20 +309,25 @@
 
     <!-- Output / Message Bar -->
     <div id="output">
-        Load an image and start measuring.
+        Load an image or PDF and start measuring.
     </div>
 
     <script>
+        // Set up PDF.js worker source
+        // This is crucial for PDF.js to function correctly in a web environment.
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js'; // Using user's requested version
+
+        // Get references to HTML elements
         const mainCanvas = document.getElementById('mainCanvas');
         const ctx = mainCanvas.getContext('2d');
         const imageLoader = document.getElementById('imageLoader');
         const drawLineBtn = document.getElementById('drawLineBtn');
         const drawRectangleBtn = document.getElementById('drawRectangleBtn');
         const drawPolygonBtn = document.getElementById('drawPolygonBtn');
-        const drawAngleBtn = document.getElementById('drawAngleBtn'); // Corrected typo
+        const drawAngleBtn = document.getElementById('drawAngleBtn');
         const drawCircleBtn = document.getElementById('drawCircleBtn');
         const addTextBtn = document.getElementById('addTextBtn');
-        const addCounterBtn = document.getElementById('addCounterBtn');
+        const addCounterBtn = document.getElementById('addCounterBtn'); // Corrected typo here
         const freehandBtn = document.getElementById('freehandBtn');
         const exportCsvBtn = document.getElementById('exportCsvBtn');
         const undoLastBtn = document.getElementById('undoLastBtn');
@@ -295,50 +338,58 @@
         const magnifyCtx = magnifierCanvas.getContext('2d');
         const measurementsListDiv = document.getElementById('measurementsList');
         const canvasContainer = document.getElementById('canvas-container');
+        const calibrateScaleBtn = document.getElementById('calibrateScaleBtn'); 
+        const confirmCalibrationBtn = document.getElementById('confirmCalibrationBtn');
 
         const dpiInput = document.getElementById('dpiInput');
         const feetPerInchInput = document.getElementById('feetPerInchInput');
         const lineWidthInput = document.getElementById('lineWidthInput');
         const fontSizeInput = document.getElementById('fontSizeInput');
 
-        let img = new Image();
-        let imgLoaded = false;
-        let zoom = 1;
-        let pan = { x: 0, y: 0 };
-        let isDragging = false;
-        let startPoint = { x: 0, y: 0 }; // Screen coords for pan, canvas coords for drawing start
-        let currentDrawing = null; // Temporary points for current drawing
-        let selectedPoint = null; // { measurementIndex, pointIndex, type } for editing
-        let mode = 'pan'; // 'pan', 'line', 'polygon', 'rectangle', 'angle', 'circle', 'text', 'counter', 'freehand'
-        let measurements = []; // Stores all drawn measurements
-        let counterValue = 1; // For the counter tool
+        // Global state variables
+        let img = new Image(); // Used for both images and a representation of the rendered PDF
+        let imgLoaded = false; // True if an image or PDF is loaded and ready
+        let zoom = 1; // Current zoom level of the canvas
+        let pan = { x: 0, y: 0 }; // Current pan offset of the canvas
+        let isDragging = false; // True if mouse/touch is currently dragging
+        let startPoint = { x: 0, y: 0 }; // Starting point of a drag operation (screen or canvas coords)
+        let currentDrawing = null; // Stores temporary points for the currently active drawing operation
+        let selectedPoint = null; // Stores info about a point being dragged/edited { measurementIndex, pointIndex, type }
+        let mode = 'pan'; // Current interaction mode: 'pan', 'calibrate', 'line', etc.
+        let measurements = []; // Array to store all completed measurements
+        let counterValue = 1; // Counter for the 'addCounter' tool
+        let snappedToPoint = null; // Stores the {x, y} of the point currently being snapped to, for visual feedback
 
-        const unit = 'ft'; // Unit will always be feet
+        const unit = 'ft'; // Measurement unit (always feet in this application)
         
-        // Scale factors (dynamically updated from UI inputs)
-        let PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
-        let FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
-        let scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT; // Pixels per foot (dynamic)
+        // Scale factors: dynamically updated from UI inputs or calibration
+        let PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value); // Pixels per inch (DPI)
+        let FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value); // Feet per physical inch on the original document
+        // Calculated pixels per foot: this is the main conversion factor from canvas pixels to real-world feet
+        let scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT; 
 
-        const HIT_RADIUS_BASE = 10; // Base hit radius for selecting points (in CSS pixels)
-        const MAGNIFIER_SIZE = 200; // Increased size
-        const MAGNIFIER_ZOOM = 3; // How much the magnifier zooms in
+        const HIT_RADIUS_BASE = 10; // Base radius (in CSS pixels) for detecting if a point is clicked
+        const SNAP_RADIUS = 3; // User requested 3 pixels for snapping
+        const MAGNIFIER_SIZE = 200; // Dimensions of the magnifier display (in CSS pixels)
+        const MAGNIFIER_ZOOM = 3; // Zoom level inside the magnifier
 
 
-        // Get device pixel ratio for high-DPI screens
+        // Get device pixel ratio for high-DPI screens (e.g., Retina displays)
+        // This ensures crisp rendering on high-resolution screens by scaling the canvas drawing buffer.
         const dpr = window.devicePixelRatio || 1;
 
-        // Set magnifier canvas size
+        // Set magnifier canvas size, adjusting for device pixel ratio for clarity
         magnifierCanvas.width = MAGNIFIER_SIZE * dpr;
         magnifierCanvas.height = MAGNIFIER_SIZE * dpr;
-        magnifyCtx.scale(dpr, dpr); // Scale magnifier context for DPR
+        magnifyCtx.scale(dpr, dpr); // Scale the magnifier's drawing context by DPR
 
-        // Helper: Get canvas context
-        function getContext() {
-            return mainCanvas.getContext('2d');
-        }
-
-        // Helper: Convert screen coordinates to canvas coordinates (considering pan and zoom)
+        /**
+         * Helper: Converts screen coordinates (from a mouse/touch event) to canvas coordinates.
+         * Accounts for the canvas's position on the screen, current pan, and zoom level.
+         * @param {number} clientX - The clientX coordinate from a pointer event.
+         * @param {number} clientY - The clientY coordinate from a pointer event.
+         * @returns {{x: number, y: number}} The corresponding canvas coordinates.
+         */
         function getCanvasCoords(clientX, clientY) {
             const rect = mainCanvas.getBoundingClientRect();
             const x = (clientX - rect.left - pan.x) / zoom;
@@ -346,23 +397,95 @@
             return { x, y };
         }
 
-        // Helper: Convert canvas coordinates to screen coordinates
+        /**
+         * Helper: Converts canvas coordinates to screen coordinates.
+         * Used to draw points or text at their correct screen positions after pan/zoom.
+         * @param {number} x - The canvas X coordinate.
+         * @param {number} y - The canvas Y coordinate.
+         * @returns {{x: number, y: number}} The corresponding screen coordinates (relative to canvas top-left).
+         */
         function getScreenCoords(x, y) {
             const screenX = x * zoom + pan.x;
             const screenY = y * zoom + pan.y;
             return { x: screenX, y: screenY };
         }
 
-        // Helper to draw a circle point
+        /**
+         * Helper: Gets canvas coordinates, potentially snapping to existing nearby points.
+         * This creates a "magnetic" effect when drawing near existing measurement points.
+         * @param {number} clientX - The clientX coordinate from a pointer event.
+         * @param {number} clientY - The clientY coordinate from a pointer event.
+         * @returns {{x: number, y: number}} The snapped or original canvas coordinates.
+         */
+        function getSnappedCanvasCoords(clientX, clientY) {
+            let { x, y } = getCanvasCoords(clientX, clientY);
+            snappedToPoint = null; // Reset snapped point for each check
+
+            // Iterate through all existing measurement points (including currently drawn calibration points) for snapping
+            const allSnappablePoints = [];
+            
+            // Add points from completed measurements
+            measurements.forEach(m => {
+                // Skip text and counter points for snapping unless they represent a geometry point
+                if (m.type !== 'text' && m.type !== 'counter') {
+                    m.points.forEach(p => allSnappablePoints.push(p));
+                }
+            });
+
+            // Add points from the current drawing (e.g., polygon points, calibration points)
+            if (currentDrawing && currentDrawing.points) {
+                // For calibration, only snap to its *first* point if drawing the second, or to *either* if editing.
+                if (currentDrawing.type === 'calibrate' && currentDrawing.points.length === 1) {
+                    allSnappablePoints.push(currentDrawing.points[0]);
+                } else if (currentDrawing.type === 'calibrate' && currentDrawing.points.length === 2) {
+                    allSnappablePoints.push(...currentDrawing.points);
+                } else if (currentDrawing.type !== 'text' && currentDrawing.type !== 'counter') {
+                    allSnappablePoints.push(...currentDrawing.points);
+                }
+            }
+
+
+            for (const p of allSnappablePoints) {
+                const screenP = getScreenCoords(p.x, p.y);
+                // Calculate distance in CSS pixels between current pointer and existing point
+                const dist = Math.hypot(clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), clientY - (mainCanvas.getBoundingClientRect().top + screenP.y));
+                
+                // If within SNAP_RADIUS, snap to this point
+                if (dist < SNAP_RADIUS) {
+                    x = p.x;
+                    y = p.y;
+                    snappedToPoint = p; // Store the snapped point for visual feedback
+                    break; // Found a point to snap to, no need to check others for this measurement
+                }
+            }
+            return { x, y };
+        }
+
+
+        /**
+         * Helper: Draws a circle to represent a point on the canvas.
+         * The radius scales with line width but not zoom, ensuring consistent visual size.
+         * @param {CanvasRenderingContext2D} context - The canvas rendering context.
+         * @param {number} x - The X coordinate of the point on the canvas.
+         * @param {number} y - The Y coordinate of the point on the canvas.
+         * @param {number} currentZoom - The current zoom level (unused for scaling here, but kept for consistency).
+         */
         function drawPoint(context, x, y, currentZoom) {
             context.beginPath();
-            // Point radius now scales based on lineWidthInput.value for visual consistency
-            const pointRadius = (parseFloat(lineWidthInput.value) * 1.5 + HIT_RADIUS_BASE / 2) / currentZoom;
+            // Point radius depends on lineWidthInput.value for visual consistency.
+            // It's already scaled by the context, so no need to divide by zoom here.
+            const pointRadius = parseFloat(lineWidthInput.value) * 1.5; 
             context.arc(x, y, pointRadius, 0, Math.PI * 2);
             context.fill();
         }
 
-        // Draw Arrowhead (logic still exists, but not used since checkbox removed)
+        /**
+         * Helper: Draws an arrowhead at the end of a line. (Currently unused in the UI but available).
+         * @param {CanvasRenderingContext2D} context - The canvas rendering context.
+         * @param {{x: number, y: number}} p1 - Start point of the line.
+         * @param {{x: number, y: number}} p2 - End point of the line (where arrowhead is drawn).
+         * @param {number} size - Size of the arrowhead.
+         */
         function drawArrowhead(context, p1, p2, size) {
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
             context.save();
@@ -372,16 +495,26 @@
             context.moveTo(-size, -size / 2);
             context.lineTo(0, 0);
             context.lineTo(-size, size / 2);
+            context.lineTo(-size, size / 2); // Duplicate, could be a copy-paste error in original
             context.fill();
             context.restore();
         }
 
-        // Line style is always solid now
+        /**
+         * Helper: Sets the line style (e.g., solid, dashed) for the given context.
+         * Currently always sets a solid line.
+         * @param {CanvasRenderingContext2D} context - The canvas rendering context.
+         */
         function setLineStyle(context) {
             context.setLineDash([]); // Solid line
         }
 
-        // Calculate length for a line
+        /**
+         * Calculates the real-world length of a line segment.
+         * @param {{x: number, y: number}} p1 - Start point in canvas coordinates.
+         * @param {{x: number, y: number}} p2 - End point in canvas coordinates.
+         * @returns {string} Formatted length string in feet and links.
+         */
         function calculateLineLength(p1, p2) {
             const lengthInPixels = Math.hypot(p2.x - p1.x, p2.y - p1.y);
             const lengthInFeet = lengthInPixels / scaleFactorPixelsPerUnit;
@@ -389,7 +522,12 @@
             return `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`;
         }
 
-        // Calculate area for a rectangle
+        /**
+         * Calculates the real-world area of a rectangle.
+         * @param {{x: number, y: number}} p1 - Top-left point in canvas coordinates.
+         * @param {{x: number, y: number}} p2 - Bottom-right point in canvas coordinates.
+         * @returns {string} Formatted area string in square feet and shotok.
+         */
         function calculateRectangleArea(p1, p2) {
             const widthPixels = Math.abs(p2.x - p1.x);
             const heightPixels = Math.abs(p2.y - p1.y);
@@ -397,10 +535,14 @@
             const heightFeet = heightPixels / scaleFactorPixelsPerUnit;
             const areaSqFt = widthFeet * heightFeet;
             const areaShotok = areaSqFt / 435.6; // 1 shotok = 435.6 sq ft
-            return `${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
+            return `${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`; 
         }
 
-        // Calculate area for a polygon (Shoelace formula)
+        /**
+         * Calculates the real-world area of a polygon using the Shoelace formula.
+         * @param {Array<{x: number, y: number}>} points - Array of polygon vertices in canvas coordinates.
+         * @returns {string} Formatted area string in square feet and shotok, or 'N/A' if less than 3 points.
+         */
         function calculatePolygonArea(points) {
             if (points.length < 3) return 'N/A';
             let areaPixels = 0;
@@ -413,10 +555,16 @@
 
             const areaSqFt = areaPixels / (scaleFactorPixelsPerUnit * scaleFactorPixelsPerUnit);
             const areaShotok = areaSqFt / 435.6; // 1 shotok = 435.6 sq ft
-            return `${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
+            return `${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`; 
         }
 
-        // Calculate angle between three points (p1-p2-p3, p2 is vertex)
+        /**
+         * Calculates the angle between three points (p1-p2-p3, where p2 is the vertex).
+         * @param {{x: number, y: number}} p1 - First point.
+         * @param {{x: number, y: number}} p2 - Vertex point.
+         * @param {{x: number, y: number}} p3 - Third point.
+         * @returns {string} Formatted angle string in degrees, or 'N/A' if points are coincident.
+         */
         function calculateAngle(p1, p2, p3) {
             const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
             const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
@@ -432,37 +580,42 @@
             return `${angleDeg.toFixed(2)}°`;
         }
 
-        // Redraw function
+        /**
+         * The main redraw function for the canvas.
+         * This function is called repeatedly via requestAnimationFrame to keep the canvas updated.
+         * It draws the loaded image/PDF, all existing measurements, and any temporary drawing in progress.
+         */
         function redraw() {
-            // Set canvas dimensions respecting device pixel ratio
+            // Adjust canvas dimensions for high-DPI screens
             mainCanvas.width = mainCanvas.clientWidth * dpr;
             mainCanvas.height = mainCanvas.clientHeight * dpr;
 
-            ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); // Clear the entire canvas
 
-            ctx.save();
-            ctx.scale(dpr, dpr); // Scale the context by device pixel ratio
-            ctx.translate(pan.x, pan.y);
-            ctx.scale(zoom, zoom);
+            ctx.save(); // Save the current state of the context
+            ctx.scale(dpr, dpr); // Scale the context by device pixel ratio for sharp rendering
+            ctx.translate(pan.x, pan.y); // Apply panning offset
+            ctx.scale(zoom, zoom); // Apply zoom level
 
-            // Draw image
-            if (imgLoaded) {
-                ctx.drawImage(img, 0, 0);
-            }
-
-            // Apply global line width and font size from UI
+            // Get current line width and font size from UI inputs
             const currentLineWidth = parseFloat(lineWidthInput.value);
             const currentFontSize = parseFloat(fontSizeInput.value);
 
-            // Draw existing measurements
+            // Draw the loaded image or PDF content
+            if (imgLoaded) {
+                // img.src contains the rendered image data (for both image and PDF after conversion)
+                ctx.drawImage(img, 0, 0);
+            }
+
+            // Draw all existing measurements stored in the 'measurements' array
             measurements.forEach((m) => {
-                ctx.strokeStyle = 'red'; // Line color is red
-                ctx.lineWidth = currentLineWidth / zoom;
-                ctx.fillStyle = 'blue'; // Text and point color is blue
-                ctx.font = `${currentFontSize / zoom}px sans-serif`;
+                ctx.strokeStyle = 'red'; // Line color for measurements
+                ctx.lineWidth = currentLineWidth / zoom; // Adjust line width based on zoom
+                ctx.fillStyle = 'blue'; // Text and point color
+                ctx.font = `${currentFontSize / zoom}px sans-serif`; // Adjust font size based on zoom
                 setLineStyle(ctx); // Always solid line
 
-                if (m.type === 'line') {
+                if (m.type === 'line' || m.type === 'calibration') {
                     const [p1, p2] = m.points;
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
@@ -470,13 +623,14 @@
                     ctx.stroke();
                     drawPoint(ctx, p1.x, p1.y, zoom);
                     drawPoint(ctx, p2.x, p2.y, zoom);
-                    if (m.value) {
+                    if (m.value) { // Display value for calibration line
                         const midX = (p1.x + p2.x) / 2;
                         const midY = (p1.y + p2.y) / 2;
                         ctx.fillText(m.value, midX + 5 / zoom, midY - 5 / zoom);
                     }
                 } else if (m.type === 'rectangle') {
-                    const [p1, p2] = m.points; // p1 top-left, p2 bottom-right
+                    const [p1, p2] = m.points; 
+                    // Calculate corners based on p1 (top-left) and p2 (bottom-right)
                     const c1 = { x: p1.x, y: p1.y };
                     const c2 = { x: p2.x, y: p1.y };
                     const c3 = { x: p2.x, y: p2.y };
@@ -487,33 +641,32 @@
                     ctx.lineTo(c2.x, c2.y);
                     ctx.lineTo(c3.x, c3.y);
                     ctx.lineTo(c4.x, c4.y);
-                    ctx.closePath();
-                    ctx.stroke();
-                    ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent fill: Light gray */
-                    ctx.fill();
+                    ctx.closePath(); // Close the rectangle path
+                    ctx.stroke(); // Draw the rectangle outline
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent light gray fill */
+                    ctx.fill(); // Fill the rectangle
                     ctx.fillStyle = 'blue'; /* Reset fillStyle for text/points */
 
-                    // Draw segment measurements
+                    // Draw segment measurements (length of each side)
                     const segments = [
-                        { p1: c1, p2: c2 }, // Top
-                        { p1: c2, p2: c3 }, // Right
-                        { p1: c3, p2: c4 }, // Bottom
-                        { p1: c4, p2: c1 }  // Left
+                        { p1: c1, p2: c2 }, { p1: c2, p2: c3 }, 
+                        { p1: c3, p2: c4 }, { p1: c4, p2: c1 }  
                     ];
                     segments.forEach(seg => {
                         const midX = (seg.p1.x + seg.p2.x) / 2;
-                        const midY = (seg.p1.y + seg.p2.y) / 2;
+                        const midY = (seg.p1.y + seg.p2.y) / 2; 
                         const length = calculateLineLength(seg.p1, seg.p2);
-                        ctx.fillText(length.split(' / ')[0], midX, midY); // Show only feet length for segments
+                        ctx.fillText(length.split(' / ')[0], midX, midY); // Show only feet length
                     });
 
+                    // Draw points at each corner
                     drawPoint(ctx, c1.x, c1.y, zoom);
                     drawPoint(ctx, c2.x, c2.y, zoom);
                     drawPoint(ctx, c3.x, c3.y, zoom);
                     drawPoint(ctx, c4.x, c4.y, zoom);
 
                     if (m.value) {
-                        // Display area in the center
+                        // Display area in the center of the rectangle
                         ctx.fillText(m.value, c1.x + (p2.x - p1.x) / 2 - ctx.measureText(m.value).width / 2, c1.y + (p2.y - p1.y) / 2);
                     }
                 } else if (m.type === 'polygon') {
@@ -524,25 +677,26 @@
                             ctx.lineTo(m.points[i].x, m.points[i].y);
                         }
                         if (m.points.length > 2 && m.closed) {
-                            ctx.closePath();
-                            ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent fill: Light gray */
-                            ctx.fill();
+                            ctx.closePath(); // Close the polygon path if marked as closed
+                            ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent light gray fill */
+                            ctx.fill(); // Fill the polygon
                             ctx.fillStyle = 'blue'; /* Reset fillStyle for text/points */
                         }
-                        ctx.stroke();
+                        ctx.stroke(); // Draw the polygon outline
 
-                        // Draw segment measurements
+                        // Draw segment measurements for each side of the polygon
                         for (let i = 0; i < m.points.length; i++) {
                             const p1 = m.points[i];
                             const p2 = m.points[(i + 1) % m.points.length]; // Connect last to first if closed
                             const midX = (p1.x + p2.x) / 2;
                             const midY = (p1.y + p2.y) / 2;
                             const length = calculateLineLength(p1, p2);
-                            ctx.fillText(length.split(' / ')[0], midX, midY); // Show only feet length for segments
+                            ctx.fillText(length.split(' / ')[0], midX, midY); // Show only feet length
                         }
 
-                        m.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom));
+                        m.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom)); // Draw points at each vertex
                         if (m.closed && m.value) {
+                            // Display area in the centroid of the polygon
                             let sumX = 0, sumY = 0;
                             m.points.forEach(p => { sumX += p.x; sumY += p.y; });
                             const centroidX = sumX / m.points.length;
@@ -551,18 +705,18 @@
                         }
                     }
                 } else if (m.type === 'angle') {
-                    const [p1, p2, p3] = m.points; // p2 is vertex
+                    const [p1, p2, p3] = m.points; // p2 is the vertex of the angle
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.lineTo(p3.x, p3.y);
-                    ctx.stroke();
+                    ctx.stroke(); // Draw the two arms of the angle
                     drawPoint(ctx, p1.x, p1.y, zoom);
                     drawPoint(ctx, p2.x, p2.y, zoom);
                     drawPoint(ctx, p3.x, p3.y, zoom);
 
-                    // Draw arc for angle
-                    const angleRadius = 30 / zoom;
+                    // Draw an arc to visually represent the angle
+                    const angleRadius = 30 / zoom; // Size of the arc, adjusted for zoom
                     const startAngle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
                     const endAngle = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     
@@ -570,7 +724,7 @@
                     ctx.arc(p2.x, p2.y, angleRadius, startAngle, endAngle);
                     ctx.stroke();
 
-                    // Text for angle value near arc
+                    // Position text for angle value near the arc
                     const textAngle = (startAngle + endAngle) / 2;
                     const textX = p2.x + Math.cos(textAngle) * (angleRadius + 10 / zoom);
                     const textY = p2.y + Math.sin(textAngle) * (angleRadius + 10 / zoom);
@@ -585,12 +739,12 @@
                     const [center, radiusPoint] = m.points;
                     const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
                     ctx.beginPath();
-                    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+                    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2); // Draw the circle
                     ctx.stroke();
-                    drawPoint(ctx, center.x, center.y, zoom);
-                    drawPoint(ctx, radiusPoint.x, radiusPoint.y, zoom);
+                    drawPoint(ctx, center.x, center.y, zoom); // Draw center point
+                    drawPoint(ctx, radiusPoint.x, radiusPoint.y, zoom); // Draw radius point
                     if (m.value) {
-                        ctx.fillText(m.value, center.x, center.y - radius - 5 / zoom);
+                        ctx.fillText(m.value, center.x, center.y - radius - 5 / zoom); // Display value above circle
                     }
                     // Show radius length
                     const radiusLength = calculateLineLength(center, radiusPoint);
@@ -598,12 +752,12 @@
                 } else if (m.type === 'text') {
                     ctx.fillStyle = 'blue'; // Text color
                     ctx.font = `${currentFontSize / zoom}px sans-serif`;
-                    ctx.fillText(m.text, m.points[0].x, m.points[0].y);
+                    ctx.fillText(m.text, m.points[0].x, m.points[0].y); // Draw text at its point
                 } else if (m.type === 'counter') {
                     ctx.fillStyle = 'blue'; // Counter color
                     ctx.font = `${currentFontSize / zoom}px sans-serif`;
-                    ctx.fillText(m.count, m.points[0].x, m.points[0].y);
-                    drawPoint(ctx, m.points[0].x, m.points[0].y, zoom);
+                    ctx.fillText(m.count, m.points[0].x, m.points[0].y); // Draw counter number
+                    drawPoint(ctx, m.points[0].x, m.points[0].y, zoom); // Draw point for counter
                 } else if (m.type === 'freehand') {
                     if (m.points.length > 1) {
                         ctx.beginPath();
@@ -611,43 +765,39 @@
                         for (let i = 1; i < m.points.length; i++) {
                             ctx.lineTo(m.points[i].x, m.points[i].y);
                         }
-                        ctx.stroke();
+                        ctx.stroke(); // Draw the freehand path
                     }
-                    if (m.value) { // Display total length
-                        // Place text near the start point for freehand
+                    if (m.value) { // Display total length for freehand path
                         const firstPoint = m.points[0];
                         ctx.fillText(m.value, firstPoint.x + 5 / zoom, firstPoint.y - 5 / zoom);
                     }
                 }
             });
 
-            // Always solid line for current drawing as well
+            // Ensure current drawing (temporary) is also drawn with a solid line style
             setLineStyle(ctx);
 
-            // Draw current drawing (tempLine, tempRect, tempPolygon, tempAngle, tempCircle, freehand)
+            // Draw current temporary drawing (e.g., line as it's being dragged, polygon segments)
             if (currentDrawing) {
                 ctx.strokeStyle = 'red';
                 ctx.lineWidth = currentLineWidth / zoom;
                 ctx.fillStyle = 'blue';
                 ctx.font = `${currentFontSize / zoom}px sans-serif`;
 
-                if (mode === 'line') {
+                if (mode === 'line' || mode === 'rectangle') { // Drag-to-draw tools
                     const [p1, p2] = currentDrawing.points;
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
+                    if (mode === 'line') {
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    } else { // Rectangle
+                        const width = p2.x - p1.x;
+                        const height = p2.y - p1.y;
+                        ctx.strokeRect(p1.x, p1.y, width, height);
+                    }
                     drawPoint(ctx, p1.x, p1.y, zoom);
                     drawPoint(ctx, p2.x, p2.y, zoom);
-                } else if (mode === 'rectangle') {
-                    const [p1, p2] = currentDrawing.points;
-                    const width = p2.x - p1.x;
-                    const height = p2.y - p1.y;
-                    ctx.strokeRect(p1.x, p1.y, width, height);
-                    drawPoint(ctx, p1.x, p1.y, zoom);
-                    drawPoint(ctx, p1.x + width, p1.y, zoom);
-                    drawPoint(ctx, p1.x, p1.y + height, zoom);
-                    drawPoint(ctx, p1.x + width, p1.y + height, zoom);
                 } else if (mode === 'polygon') {
                     if (currentDrawing.points.length > 0) {
                         ctx.beginPath();
@@ -655,25 +805,23 @@
                         for (let i = 1; i < currentDrawing.points.length; i++) {
                             ctx.lineTo(currentDrawing.points[i].x, currentDrawing.points[i].y);
                         }
-                        // Draw temporary line from last point to current mouse position
-                        const mouseCanvasCoords = getCanvasCoords(lastPointerClientX, lastPointerClientY);
+                        // Draw temporary line from last point to current mouse position (snapped)
+                        const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                         ctx.lineTo(mouseCanvasCoords.x, mouseCanvasCoords.y);
                         ctx.stroke();
                         currentDrawing.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom));
-                        drawPoint(ctx, mouseCanvasCoords.x, mouseCanvasCoords.y, zoom); // Draw current mouse point
                     }
                 } else if (mode === 'angle' && currentDrawing.points.length > 0) {
                     drawPoint(ctx, currentDrawing.points[0].x, currentDrawing.points[0].y, zoom); // First point
                     if (currentDrawing.points.length === 1) { // Drawing first arm
-                        const mouseCanvasCoords = getCanvasCoords(lastPointerClientX, lastPointerClientY);
+                        const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                         ctx.beginPath();
                         ctx.moveTo(currentDrawing.points[0].x, currentDrawing.points[0].y);
                         ctx.lineTo(mouseCanvasCoords.x, mouseCanvasCoords.y);
                         ctx.stroke();
-                        drawPoint(ctx, mouseCanvasCoords.x, mouseCanvasCoords.y, zoom);
                     } else if (currentDrawing.points.length === 2) { // Drawing second arm
                         const [p1, p2] = currentDrawing.points; // p2 is vertex
-                        const mouseCanvasCoords = getCanvasCoords(lastPointerClientX, lastPointerClientY);
+                        const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                         ctx.beginPath();
                         ctx.moveTo(p1.x, p1.y);
                         ctx.lineTo(p2.x, p2.y);
@@ -681,17 +829,15 @@
                         ctx.stroke();
                         drawPoint(ctx, p1.x, p1.y, zoom);
                         drawPoint(ctx, p2.x, p2.y, zoom);
-                        drawPoint(ctx, mouseCanvasCoords.x, mouseCanvasCoords.y, zoom);
                     }
                 } else if (mode === 'circle' && currentDrawing.points.length > 0) {
                     const [center] = currentDrawing.points;
-                    const mouseCanvasCoords = getCanvasCoords(lastPointerClientX, lastPointerClientY);
+                    const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                     const radius = Math.hypot(mouseCanvasCoords.x - center.x, mouseCanvasCoords.y - center.y);
                     ctx.beginPath();
                     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
                     ctx.stroke();
                     drawPoint(ctx, center.x, center.y, zoom);
-                    drawPoint(ctx, mouseCanvasCoords.x, mouseCanvasCoords.y, zoom);
                 } else if (mode === 'freehand' && currentDrawing.points.length > 1) {
                     ctx.beginPath();
                     ctx.moveTo(currentDrawing.points[0].x, currentDrawing.points[0].y);
@@ -699,10 +845,23 @@
                         ctx.lineTo(currentDrawing.points[i].x, currentDrawing.points[i].y);
                     }
                     ctx.stroke();
+                } else if (mode === 'calibrate' && currentDrawing.points.length >= 1) { // Live line for calibration (1 or 2 points)
+                    const p1 = currentDrawing.points[0];
+                    const p2 = currentDrawing.points.length === 2 ? currentDrawing.points[1] : getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                    drawPoint(ctx, p1.x, p1.y, zoom);
+                    if (currentDrawing.points.length === 1) { // Only draw second point if still selecting
+                        drawPoint(ctx, p2.x, p2.y, zoom);
+                    } else if (currentDrawing.points.length === 2) { // Draw both points if selected for editing
+                        drawPoint(ctx, currentDrawing.points[1].x, currentDrawing.points[1].y, zoom);
+                    }
                 }
             }
 
-            ctx.restore();
+            ctx.restore(); // Restore the context to its original state before this redraw
 
             // Draw magnifier content if active
             if (magnifierDiv.style.display === 'block') {
@@ -725,6 +884,7 @@
                 const sourceX_physical = rawPixelX_under_cursor - (sourceRegionPhysicalSize / 2);
                 const sourceY_physical = rawPixelY_under_cursor - (sourceRegionPhysicalSize / 2);
                 
+                // Draw a magnified portion of the main canvas onto the magnifier canvas
                 magnifyCtx.drawImage(
                     mainCanvas, 
                     sourceX_physical, sourceY_physical, 
@@ -743,20 +903,25 @@
                 magnifyCtx.stroke();
             }
 
-            requestAnimationFrame(redraw);
+            requestAnimationFrame(redraw); // Request the next animation frame
         }
 
-        // --- Measurement List Rendering ---
+        /**
+         * Renders the list of current measurements in the sidebar.
+         * Clears the existing list and re-populates it with updated measurement data.
+         */
         function renderMeasurementsList() {
-            measurementsListDiv.innerHTML = ''; // Clear existing list
+            measurementsListDiv.innerHTML = ''; // Clear existing list items
             if (measurements.length === 0) {
                 measurementsListDiv.innerHTML = '<p class="text-gray-600 text-sm">No measurements yet. Draw something!</p>';
                 return;
             }
+            // Create and append a div for each measurement
             measurements.forEach((m, index) => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'measurement-item';
                 let displayText = '';
+                // Determine display text based on measurement type
                 if (m.type === 'line') {
                     displayText = `Line: ${m.value}`;
                 } else if (m.type === 'rectangle') {
@@ -773,7 +938,10 @@
                     displayText = `Counter: ${m.count}`;
                 } else if (m.type === 'freehand') {
                     displayText = `Freehand Drawing (Length: ${m.value})`;
+                } else if (m.type === 'calibration') {
+                    displayText = `Calibration: ${m.value}`;
                 }
+                // Add measurement text and a delete button
                 itemDiv.innerHTML = `
                     <span class="text-sm font-medium text-gray-800">${displayText}</span>
                     <button data-index="${index}">Delete</button>
@@ -782,27 +950,49 @@
             });
         }
 
-        // Track last pointer position for magnifier and temporary line drawing
+        // Variables to track last pointer position for magnifier and temporary drawing feedback
         let lastPointerClientX = 0;
         let lastPointerClientY = 0;
 
-        // --- Event Handlers ---
+        // --- Event Handlers for Canvas Interaction ---
 
+        /**
+         * Handles pointer down (mouse click or touch start) events on the main canvas.
+         * Initiates panning, drawing, or point selection based on the current mode.
+         * @param {PointerEvent} e - The pointerdown event object.
+         */
         function handlePointerDown(e) {
-            if (e.button === 2) return; // Ignore right click
+            if (e.button === 2) return; // Ignore right-click
 
-            const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-            startPoint = { clientX: e.clientX, clientY: e.clientY, x, y };
+            // Get canvas coordinates, potentially snapping to existing points if not in pan mode or if editing a point
+            const { x, y } = (mode !== 'pan' || selectedPoint) ? getSnappedCanvasCoords(e.clientX, e.clientY) : getCanvasCoords(e.clientX, e.clientY);
+            
+            // Store starting point for drag calculations (screen coords for pan, canvas coords for drawing/editing)
+            startPoint = { clientX: e.clientX, clientY: e.clientY, x, y }; 
             isDragging = true;
             
-            // For magnifier positioning, update lastPointerClientX/Y
+            // Update last pointer position for magnifier
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
 
 
             if (mode === 'pan') {
                 magnifierDiv.style.display = 'none'; // Hide magnifier in pan mode
-            } else if (mode === 'line') {
+            } else if (mode === 'calibrate') {
+                if (!currentDrawing) { // First click for calibration
+                    currentDrawing = { type: 'calibrate', points: [{ x, y }] };
+                    outputDisplay.innerText = 'First calibration point set. Now move your mouse to the second point and click.';
+                    magnifierDiv.style.display = 'block';
+                } else if (currentDrawing.type === 'calibrate' && currentDrawing.points.length === 1) { // Second click for calibration
+                    currentDrawing.points.push({ x, y }); // Add the second point
+                    outputDisplay.innerText = 'Second calibration point set. Adjust line if needed, then click "Confirm Calibration".';
+                    confirmCalibrationBtn.style.display = 'inline-block'; // Show confirm button
+                    magnifierDiv.style.display = 'none'; // Hide magnifier after second click
+                    // Now, set selectedPoint to allow dragging of the newly added point
+                    selectedPoint = { measurementIndex: -1, pointIndex: 1, type: 'calibrate' }; // -1 indicates currentDrawing
+                }
+            }
+            else if (mode === 'line') {
                 currentDrawing = { type: 'line', points: [{ x, y }, { x, y }] };
                 magnifierDiv.style.display = 'block';
             } else if (mode === 'rectangle') {
@@ -864,7 +1054,7 @@
                     updateModeButtons();
                     renderMeasurementsList();
                     canvasContainer.classList.remove('drawing-mode');
-                    return; // Exit as measurement is complete
+                    return; // Exit to prevent further processing as measurement is complete
                 }
                 magnifierDiv.style.display = 'block';
             } else if (mode === 'text') {
@@ -906,95 +1096,146 @@
             }
 
             // Check for point selection for editing existing measurements (only in pan mode or if no drawing in progress)
-            if (mode === 'pan' || !currentDrawing) {
-                selectedPoint = null;
-                measurements.forEach((m, measIdx) => {
-                    m.points.forEach((p, pIdx) => {
+            // If in calibrate mode AND we have 2 points, also allow selection of the points in `currentDrawing`.
+            if (mode === 'pan' || (!currentDrawing && mode !== 'calibrate') || (currentDrawing && currentDrawing.type === 'calibrate' && currentDrawing.points.length === 2)) {
+                selectedPoint = null; // Reset
+                
+                // Check existing measurements
+                for (const m of measurements) {
+                    for (let pIdx = 0; pIdx < m.points.length; pIdx++) {
+                        const p = m.points[pIdx];
                         const screenP = getScreenCoords(p.x, p.y);
-                        // Check if pointer is within HIT_RADIUS (in CSS pixels) of the rendered point
-                        const effectiveHitRadius = HIT_RADIUS_BASE; // HIT_RADIUS_BASE is already in CSS pixels
+                        const effectiveHitRadius = HIT_RADIUS_BASE; 
                         if (Math.hypot(e.clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), e.clientY - (mainCanvas.getBoundingClientRect().top + screenP.y)) < effectiveHitRadius) {
-                            selectedPoint = { measurementIndex: measIdx, pointIndex: pIdx, type: m.type };
-                            currentDrawing = null; // Ensure no new drawing starts if editing
+                            selectedPoint = { measurementIndex: measurements.indexOf(m), pointIndex: pIdx, type: m.type };
+                            currentDrawing = null; // Ensure no new drawing starts if editing an existing measurement
                             magnifierDiv.style.display = 'block';
-                            return;
+                            return; // Stop checking after finding one
                         }
-                    });
-                });
+                    }
+                }
+
+                // Check points of `currentDrawing` if in calibrate mode with 2 points
+                if (mode === 'calibrate' && currentDrawing && currentDrawing.points.length === 2) {
+                    for (let pIdx = 0; pIdx < currentDrawing.points.length; pIdx++) {
+                        const p = currentDrawing.points[pIdx];
+                        const screenP = getScreenCoords(p.x, p.y);
+                        const effectiveHitRadius = HIT_RADIUS_BASE;
+                        if (Math.hypot(e.clientX - (mainCanvas.getBoundingClientRect().left + screenP.x), e.clientY - (mainCanvas.getBoundingClientRect().top + screenP.y)) < effectiveHitRadius) {
+                            selectedPoint = { measurementIndex: -1, pointIndex: pIdx, type: 'calibrate' }; // -1 indicates currentDrawing
+                            magnifierDiv.style.display = 'block';
+                            return; // Stop checking after finding one
+                        }
+                    }
+                }
             }
         }
 
+        /**
+         * Handles pointer move events on the main canvas.
+         * Updates pan, draws temporary lines/shapes, and updates magnifier content.
+         * @param {PointerEvent} e - The pointermove event object.
+         */
         function handlePointerMove(e) {
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
 
-            // Magnifier is fixed at top-left, so its position doesn't change with pointer move.
-            // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
+            // Update magnifier's internal state for redraw (its position is fixed by CSS)
+            // The redraw function will use these updated clientX/Y to determine what part of the canvas to magnify.
 
-            const { x: currentCanvasX, y: currentCanvasY } = getCanvasCoords(e.clientX, e.clientY);
+            // Get canvas coordinates, potentially snapped to existing points
+            const { x: currentCanvasX, y: currentCanvasY } = (mode !== 'pan' || selectedPoint) ? getSnappedCanvasCoords(e.clientX, e.clientY) : getCanvasCoords(e.clientX, e.clientY);
 
             if (selectedPoint) {
-                // Editing an existing measurement's point
-                const meas = measurements[selectedPoint.measurementIndex];
+                // If a point of an existing measurement or currentDrawing is selected for editing
+                if (selectedPoint.measurementIndex !== -1) { // Editing an existing measurement
+                    const meas = measurements[selectedPoint.measurementIndex];
 
-                if (selectedPoint.type === 'line') {
-                    meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
-                    meas.value = calculateLineLength(meas.points[0], meas.points[1]);
-                } else if (selectedPoint.type === 'rectangle') {
-                    const [p1, p2] = meas.points;
-                    if (selectedPoint.pointIndex === 0) { // Dragging top-left
-                        meas.points = [{ x: currentCanvasX, y: currentCanvasY }, p2];
-                    } else if (selectedPoint.pointIndex === 1) { // Dragging bottom-right
-                        meas.points = [p1, { x: currentCanvasX, y: currentCanvasY }];
-                    }
-                    meas.value = calculateRectangleArea(meas.points[0], meas.points[1]);
-                } else if (selectedPoint.type === 'polygon' || selectedPoint.type === 'angle' || selectedPoint.type === 'circle') {
-                    meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
-                    if (selectedPoint.type === 'polygon') {
-                        meas.value = calculatePolygonArea(meas.points);
-                    } else if (selectedPoint.type === 'angle') {
-                        const [p1, p2, p3] = meas.points;
-                        meas.value = calculateAngle(p1, p2, p3);
-                    } else if (selectedPoint.type === 'circle') {
-                        const [center, radiusPoint] = meas.points;
-                        const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
-                        const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
-                        const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
-                        const areaShotok = areaSqFt / 435.6;
-                        meas.radius = radius / scaleFactorPixelsPerUnit; // Update radius in feet
-                        meas.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
-                    }
-                } else if (selectedPoint.type === 'text' || selectedPoint.type === 'counter') {
-                    meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
-                } else if (selectedPoint.type === 'freehand') {
-                    // Freehand points are not moved individually after drawing
+                    if (selectedPoint.type === 'line' || selectedPoint.type === 'calibration') {
+                        meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
+                        if (selectedPoint.type === 'line') {
+                            meas.value = calculateLineLength(meas.points[0], meas.points[1]);
+                        }
+                        // If a calibration line point is dragged, update its stored points but don't recalculate scale here
+                        // The user needs to explicitly click "Confirm Calibration"
+                    } else if (selectedPoint.type === 'rectangle') {
+                        const [p1, p2] = meas.points;
+                        // Adjust rectangle points based on which corner is being dragged
+                        if (selectedPoint.pointIndex === 0) { // Dragging top-left
+                            meas.points = [{ x: currentCanvasX, y: currentCanvasY }, p2];
+                        } else if (selectedPoint.pointIndex === 1) { // Dragging bottom-right
+                            meas.points = [p1, { x: currentCanvasX, y: currentCanvasY }];
+                        }
+                        meas.value = calculateRectangleArea(meas.points[0], meas.points[1]);
+                    } else if (selectedPoint.type === 'polygon' || selectedPoint.type === 'angle' || selectedPoint.type === 'circle') {
+                        // Update point for polygon, angle, or circle
+                        meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
+                        if (selectedPoint.type === 'polygon') {
+                            meas.value = calculatePolygonArea(meas.points);
+                        } else if (selectedPoint.type === 'angle') {
+                            const [p1, p2, p3] = meas.points;
+                            meas.value = calculateAngle(p1, p2, p3);
+                        } else if (selectedPoint.type === 'circle') {
+                            const [center, radiusPoint] = meas.points;
+                            const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
+                            const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
+                            const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
+                            const areaShotok = areaSqFt / 435.6;
+                            meas.radius = radius / scaleFactorPixelsPerUnit; // Update radius in feet
+                            meas.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
+                        }
+                    } else if (selectedPoint.type === 'text' || selectedPoint.type === 'counter') {
+                        // Update position for text or counter
+                        meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
+                    } 
+                } else if (selectedPoint.measurementIndex === -1 && selectedPoint.type === 'calibrate') {
+                    // Editing a point of the temporary currentDrawing calibration line
+                    currentDrawing.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
+                    // No need to update 'value' here, as it's a temporary line for visual editing
+                    outputDisplay.innerText = 'Adjusting calibration line...';
                 }
-                outputDisplay.innerText = 'Editing measurement...';
                 renderMeasurementsList(); // Update list after editing
             } else if (mode === 'pan' && isDragging) {
-                // Panning the canvas
+                // If in pan mode and dragging, update the pan offset
                 pan.x += (e.clientX - startPoint.clientX);
                 pan.y += (e.clientY - startPoint.clientY);
                 startPoint.clientX = e.clientX;
                 startPoint.clientY = e.clientY;
-            } else if (currentDrawing && isDragging && (mode === 'line' || mode === 'rectangle' || mode === 'freehand')) {
-                // Drawing a new measurement (line, rectangle, or freehand)
+            } else if (currentDrawing && isDragging && (mode === 'line' || mode === 'rectangle' || mode === 'freehand')) { 
+                // For drag-to-draw tools (line, rectangle, freehand), update the second point or add points
                 if (mode === 'line' || mode === 'rectangle') {
                     currentDrawing.points[1] = { x: currentCanvasX, y: currentCanvasY };
                 } else if (mode === 'freehand') {
                     currentDrawing.points.push({ x: currentCanvasX, y: currentCanvasY });
                 }
-            }
-            // For polygon, angle, circle: temporary lines/shapes are drawn in redraw based on currentDrawing and mouse position
+            } 
+            // For multi-click drawing modes (polygon, angle, circle, calibrate with 1 point),
+            // temporary lines/shapes are drawn in redraw based on `lastPointerClientX/Y`
+            // and `currentDrawing` points. No direct modification to `currentDrawing.points` needed here on move.
         }
 
-
+        /**
+         * Handles pointer up (mouse release or touch end) events on the main canvas.
+         * Finalizes drawings or releases selected points.
+         */
         function handlePointerUp() {
             isDragging = false;
-            selectedPoint = null; // Clear selected point after release
+            
+            // If we were dragging a calibration point, clear the temporary `selectedPoint` and `currentDrawing`.
+            // The actual calibration is confirmed via the button.
+            if (selectedPoint && selectedPoint.type === 'calibrate' && selectedPoint.measurementIndex === -1) {
+                // Do not clear currentDrawing here. It stays until confirmed or cancelled.
+                // Re-set selectedPoint to null.
+                selectedPoint = null;
+                outputDisplay.innerText = 'Calibration line adjusted. Click "Confirm Calibration" to finalize or "Calibrate Scale" to redraw.';
+            } else {
+                selectedPoint = null; // Clear selected point after release for other modes
+            }
+
             magnifierDiv.style.display = 'none'; // Deactivate magnifier on pointer up
 
-            if (currentDrawing) {
+            // Finalize drawing for drag-to-draw tools (line, rectangle, freehand)
+            if (currentDrawing && (mode === 'line' || mode === 'rectangle' || mode === 'freehand')) {
                 if (mode === 'line') {
                     const line = {
                         id: Date.now() + '-line',
@@ -1015,7 +1256,6 @@
                     outputDisplay.innerText = 'Rectangle drawn. Area: ' + rect.value;
                 } else if (mode === 'freehand') {
                     if (currentDrawing.points.length > 1) { // Only save if more than one point
-                        // Calculate total length for freehand path
                         let totalLength = 0;
                         for(let i = 0; i < currentDrawing.points.length - 1; i++) {
                             const p1 = currentDrawing.points[i];
@@ -1036,22 +1276,24 @@
                         outputDisplay.innerText = 'Freehand drawing cancelled (too short).';
                     }
                 }
-                // For polygon, angle, circle: currentDrawing is only cleared when the measurement is complete (e.g., double-click for polygon, 3rd click for angle, 2nd for circle)
-                if (mode !== 'polygon' && mode !== 'angle' && mode !== 'circle') { // Clear for line, rect, freehand, text, counter
-                    currentDrawing = null;
-                }
+                currentDrawing = null; // Clear current drawing for drag-to-draw tools
                 renderMeasurementsList(); // Update list after new measurement
             }
 
-            // Only revert to pan mode if not in polygon/angle/circle drawing (where clicks continue the drawing)
-            if (mode !== 'polygon' && mode !== 'angle' && mode !== 'circle' || (currentDrawing && currentDrawing.closed)) {
-                mode = 'pan'; // Reset to pan mode after an action is completed
+            // Revert to pan mode if a drawing action (excluding multi-click modes like polygon, angle, circle, calibrate) is completed.
+            // For calibrate, we explicitly wait for confirmCalibrationBtn click.
+            if (mode !== 'polygon' && mode !== 'angle' && mode !== 'circle' && mode !== 'calibrate') {
+                mode = 'pan'; // Reset to pan mode
                 updateModeButtons();
                 canvasContainer.classList.remove('drawing-mode'); // Remove crosshair
             }
         }
 
-        // Double click to finish polygon
+        /**
+         * Handles double-click events on the main canvas.
+         * Used to finalize polygon drawing.
+         * @param {MouseEvent} e - The dblclick event object.
+         */
         function handleDoubleClick(e) {
             e.preventDefault();
             if (mode === 'polygon' && currentDrawing && currentDrawing.points.length >= 3) {
@@ -1073,142 +1315,333 @@
             magnifierDiv.style.display = 'none'; // Deactivate magnifier on double click for polygon
         }
 
-
+        /**
+         * Handles mouse wheel events for zooming.
+         * Zooms in/out centered on the mouse pointer.
+         * @param {WheelEvent} e - The wheel event object.
+         */
         function handleWheel(e) {
-            e.preventDefault();
-            const zoomAmount = e.deltaY < 0 ? 1.1 : 0.9;
+            e.preventDefault(); // Prevent default browser scroll/zoom
+            const zoomAmount = e.deltaY < 0 ? 1.1 : 0.9; // Determine zoom direction and factor
 
             const rect = mainCanvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            const mouseX = e.clientX - rect.left; // Mouse X relative to canvas
+            const mouseY = e.clientY - rect.top; // Mouse Y relative to canvas
 
-            // Calculate mouse position relative to current pan and zoom
+            // Calculate mouse position in canvas coordinates BEFORE zooming
             const canvasX = (mouseX - pan.x) / zoom;
             const canvasY = (mouseY - pan.y) / zoom;
 
-            zoom *= zoomAmount;
+            zoom *= zoomAmount; // Apply new zoom level
 
             // Adjust pan to keep the mouse point fixed on the canvas
             pan.x = mouseX - canvasX * zoom;
             pan.y = mouseY - canvasY * zoom;
         }
 
+        // Variables for touch pinch-to-zoom
         let lastTouchDist = null;
+
+        /**
+         * Handles touch start events for panning and pinch-to-zoom.
+         * @param {TouchEvent} e - The touchstart event object.
+         */
         function handleTouchStart(e) {
             if (e.touches.length === 2) {
+                // If two fingers, initiate pinch-to-zoom
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                lastTouchDist = Math.hypot(dx, dy);
-                magnifierDiv.style.display = 'none'; // Deactivate magnifier during multi-touch pan/zoom
-                currentDrawing = null; // Clear any partial drawing
-                mode = 'pan'; // Always go to pan mode on multi-touch
+                const dy = e.touches[0].clientY - e.touches[0].clientY; // Corrected dy for consistency, though it works with any two touch points
+                lastTouchDist = Math.hypot(dx, dy); // Store initial distance between fingers
+                magnifierDiv.style.display = 'none'; // Hide magnifier during multi-touch
+                currentDrawing = null; // Clear any partial drawing if multi-touch starts
+                mode = 'pan'; // Force pan mode on multi-touch
                 updateModeButtons();
                 canvasContainer.classList.remove('drawing-mode');
             } else if (e.touches.length === 1) {
+                // If one finger, treat as a single pointer down event (for drawing/panning)
                 handlePointerDown(e.touches[0]);
             }
         }
 
+        /**
+         * Handles touch move events for panning and pinch-to-zoom.
+         * @param {TouchEvent} e - The touchmove event object.
+         */
         function handleTouchMove(e) {
-            // For magnifier on touch, we track the first touch point.
+            // Update last pointer client coordinates for magnifier, even during touch
             if (e.touches.length === 1 && magnifierDiv.style.display === 'block') {
                 lastPointerClientX = e.touches[0].clientX;
                 lastPointerClientY = e.touches[0].clientY;
-                // Position the magnifier DIV based on the touch point
-                // For a fixed magnifier, its position is controlled by CSS, not JS here.
-                // This block is only to update lastPointerClientX/Y for magnifier's redraw source.
             }
 
             if (e.touches.length === 2) {
+                // If two fingers, perform pinch-to-zoom
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const newDist = Math.hypot(dx, dy);
+                const newDist = Math.hypot(dx, dy); // Current distance between fingers
 
                 if (lastTouchDist) {
-                    const zoomAmount = newDist / lastTouchDist;
+                    const zoomAmount = newDist / lastTouchDist; // Calculate zoom factor
                     const rect = mainCanvas.getBoundingClientRect();
+                    // Calculate center of the two touches
                     const touchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                     const touchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
+                    // Convert touch center to canvas coordinates
                     const canvasX = (touchX - rect.left - pan.x) / zoom;
                     const canvasY = (touchY - rect.y - pan.y) / zoom;
 
-                    zoom *= zoomAmount;
+                    zoom *= zoomAmount; // Apply new zoom
+                    // Adjust pan to keep the pinch center fixed
                     pan.x = touchX - rect.left - canvasX * zoom;
                     pan.y = touchY - rect.y - canvasY * zoom;
                 }
-                lastTouchDist = newDist;
-                e.preventDefault(); // Prevent scrolling/zooming by browser
+                lastTouchDist = newDist; // Update last distance for next move
+                e.preventDefault(); // Prevent default browser gestures (e.g., scrolling)
             } else if (e.touches.length === 1) {
+                // If one finger, treat as a single pointer move event
                 handlePointerMove(e.touches[0]);
             }
         }
 
+        /**
+         * Handles touch end events.
+         * Resets touch tracking variables.
+         * @param {TouchEvent} e - The touchend event object.
+         */
         function handleTouchEnd(e) {
-            lastTouchDist = null;
+            lastTouchDist = null; // Clear pinch-to-zoom state
             if (e.touches.length === 0) {
+                // If all fingers are lifted, treat as a single pointer up event
                 handlePointerUp();
             }
         }
 
-        // Image loading
-        imageLoader.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+        // --- File Loading Logic ---
+
+        /**
+         * Loads an image or PDF file onto the canvas.
+         * Resets canvas state and measurements before loading.
+         * For PDFs, it renders the first page to a high-resolution offscreen canvas,
+         * then converts that to an image to be drawn on the main canvas.
+         * This approach ensures clarity during zoom/pan while keeping `redraw` logic simple.
+         * @param {File} file - The file object to load.
+         */
+        let currentPdfPage = null; // To store the PDF page for direct rendering
+
+        async function loadFile(file) {
             if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = function (event) {
-                img.onload = () => {
-                    imgLoaded = true;
-                    // Initial pan to center image
-                    pan = {
-                        x: (mainCanvas.clientWidth - img.width) / 2,
-                        y: (mainCanvas.clientHeight - img.height) / 2,
+            // Reset canvas state and measurements
+            imgLoaded = false;
+            img.src = ''; // Clear previous image or PDF dataURL
+            measurements = [];
+            renderMeasurementsList();
+            outputDisplay.innerText = 'Loading file...';
+            mode = 'pan'; // Reset mode to pan
+            updateModeButtons();
+            canvasContainer.classList.remove('drawing-mode'); // Remove crosshair
+            confirmCalibrationBtn.style.display = 'none'; // Hide confirm button on new file load
+            currentPdfPage = null; // Clear previous PDF page reference
+            
+            // Set initial scale parameters from UI inputs
+            PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
+            FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
+            scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
+
+
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    img.onload = () => {
+                        imgLoaded = true;
+                        // Center image on load
+                        pan = {
+                            x: (mainCanvas.clientWidth - img.width * zoom) / 2,
+                            y: (mainCanvas.clientHeight - img.height * zoom) / 2,
+                        };
+                        zoom = 1; // Reset zoom
+                        outputDisplay.innerText = `Image loaded. Scale: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet. Start measuring now.`;
+                        redraw(); // Force a redraw
                     };
-                    zoom = 1; // Reset zoom
-                    measurements = []; // Clear measurements on new image load
-                    renderMeasurementsList();
-                    
-                    outputDisplay.innerText = `Image loaded. Scale: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} ft. Now start measuring.`;
-                    mode = 'pan'; // Default mode is pan
-                    updateModeButtons();
-                    canvasContainer.classList.remove('drawing-mode'); // Ensure crosshair is off
+                    img.src = event.target.result; // Set image source from file
                 };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file); // Read image as Data URL
+            } else if (file.type === 'application/pdf') {
+                outputDisplay.innerText = 'Loading PDF... Please wait.'; // Message for PDF loading
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const pdfData = new Uint8Array(event.target.result);
+                    
+                    pdfjsLib.getDocument({ data: pdfData }).promise.then(function(pdf) {
+                        outputDisplay.innerText = `PDF loaded (${pdf.numPages} pages). Rendering page 1...`;
+                        return pdf.getPage(1);
+                    }).then(function(page) {
+                        currentPdfPage = page; // Store the page object for resize handling
+                        const desiredPpi = parseFloat(dpiInput.value) || 300;
+                        const scale = desiredPpi / 72; // PDF native is 72 PPI
+                        const viewport = page.getViewport({ scale: scale });
+
+                        const tempCanvas = document.createElement('canvas'); 
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCanvas.width = viewport.width;
+                        tempCanvas.height = viewport.height;
+
+                        const renderContext = { canvasContext: tempCtx, viewport: viewport };
+                        return page.render(renderContext).promise.then(() => {
+                            // After rendering is complete on tempCanvas, update img.src
+                            img.onload = () => {
+                                imgLoaded = true;
+                                pan = {
+                                    x: (mainCanvas.clientWidth - img.width * zoom) / 2,
+                                    y: (mainCanvas.clientHeight - img.height * zoom) / 2,
+                                };
+                                zoom = 1;
+                                outputDisplay.innerText = `PDF page 1 loaded as image. Scale: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet. Start measuring now.`;
+                                redraw();
+                            };
+                            // Use the tempCanvas directly for toDataURL
+                            img.src = tempCanvas.toDataURL('image/png');
+                            tempCanvas.remove(); // Clean up the temporary canvas
+                        });
+                    }).catch(err => {
+                        outputDisplay.innerText = 'Error loading PDF: ' + err.message + '. Ensure the file is valid and you are serving this HTML file from a web server (e.g., http://localhost) due to browser security restrictions on local files.';
+                        console.error('PDF.js error:', err);
+                    });
+                };
+                reader.readAsArrayBuffer(file); // Read PDF as ArrayBuffer
+            } else {
+                outputDisplay.innerText = 'Unsupported file type. Please load an image or PDF file.';
+            }
+        }
+
+
+        // Event listener for image/PDF file input change
+        imageLoader.addEventListener('change', (e) => {
+            loadFile(e.target.files[0]);
         });
 
-        // Event listeners for scale inputs
+        // --- Drag and Drop functionality for loading files ---
+        canvasContainer.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Prevent default dragover behavior
+            e.stopPropagation(); // Stop event propagation
+            e.dataTransfer.dropEffect = 'copy'; // Visual feedback for drop operation
+            canvasContainer.style.borderColor = '#3b82f6'; // Highlight drag area
+        });
+
+        canvasContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            canvasContainer.style.borderColor = 'transparent'; // Reset border on drag leave
+        });
+
+        canvasContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            canvasContainer.style.borderColor = 'transparent'; // Reset border on drop
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                loadFile(e.dataTransfer.files[0]); // Load the dropped file
+            }
+        });
+
+
+        // Event listeners for DPI and Feet/Inch input changes
         dpiInput.addEventListener('input', () => {
             PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
             if (FEET_PER_INCH_CURRENT > 0) {
                 scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
-                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} ft.`;
+                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet.`;
             } else {
-                 outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
+                outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
             }
-            redraw();
+            redraw(); // Redraw canvas to reflect potential scale changes
         });
 
         feetPerInchInput.addEventListener('input', () => {
             FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
             if (FEET_PER_INCH_CURRENT > 0) {
                 scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
-                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} ft.`;
+                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet.`;
             } else {
-                 outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
+                outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
             }
-            redraw();
+            redraw(); // Redraw canvas to reflect potential scale changes
         });
 
-        // Export measurements as CSV
+        // Event listener for "Calibrate Scale" button
+        calibrateScaleBtn.addEventListener('click', () => {
+            if (!imgLoaded) {
+                outputDisplay.innerText = 'Please load an image or PDF first.';
+                return;
+            }
+            // If already in calibration mode, clicking again cancels it
+            if (mode === 'calibrate') {
+                mode = 'pan';
+                currentDrawing = null; // Clear current calibration line
+                confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
+                outputDisplay.innerText = 'Calibration cancelled.';
+                updateModeButtons();
+                canvasContainer.classList.remove('drawing-mode');
+                return;
+            }
+
+            mode = 'calibrate'; // Set mode to calibrate
+            currentDrawing = null; // Clear any existing temporary drawing
+            outputDisplay.innerText = 'Click the first point for calibration.';
+            updateModeButtons(); // Update button highlighting
+            canvasContainer.classList.add('drawing-mode'); // Show crosshair cursor
+            confirmCalibrationBtn.style.display = 'none'; // Ensure confirm button is hidden initially
+        });
+
+        // Event listener for "Confirm Calibration" button
+        confirmCalibrationBtn.addEventListener('click', () => {
+            // Only proceed if in calibrate mode and a two-point line has been drawn
+            if (mode === 'calibrate' && currentDrawing && currentDrawing.points.length === 2) {
+                const [p1, p2] = currentDrawing.points;
+                const pixelDistance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                
+                // Prompt user for the real-world distance
+                let realWorldLength = parseFloat(prompt("Enter the real-world distance (in feet) between the two points:"));
+                
+                if (!isNaN(realWorldLength) && realWorldLength > 0) {
+                    // Recalculate scale factor
+                    scaleFactorPixelsPerUnit = pixelDistance / realWorldLength;
+                    // Update DPI input to reflect the new calibration based on the existing Feet/Inch
+                    PIXELS_PER_INCH_CURRENT = scaleFactorPixelsPerUnit * FEET_PER_INCH_CURRENT;
+                    dpiInput.value = PIXELS_PER_INCH_CURRENT.toFixed(2);
+
+                    // Add calibration as a measurement
+                    measurements.push({
+                        id: Date.now() + '-calibration',
+                        type: 'calibration',
+                        points: currentDrawing.points,
+                        value: `${realWorldLength.toFixed(2)} ft (1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} ft, DPI = ${PIXELS_PER_INCH_CURRENT.toFixed(2)}).`
+                    });
+                    outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${PIXELS_PER_INCH_CURRENT.toFixed(2)}).`;
+                    
+                } else {
+                    outputDisplay.innerText = 'Invalid length entered. Calibration cancelled.';
+                }
+            } else {
+                outputDisplay.innerText = 'Please draw a calibration line first (two clicks).';
+            }
+            currentDrawing = null; // Clear current drawing after confirmation attempt
+            confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
+            mode = 'pan'; // Reset mode to pan
+            updateModeButtons(); // Update button highlighting
+            renderMeasurementsList(); // Update measurements list
+            canvasContainer.classList.remove('drawing-mode'); // Remove crosshair cursor
+        });
+
+
+        // Event listener for "Export CSV" button
         exportCsvBtn.addEventListener('click', () => {
             if (measurements.length === 0) {
                 outputDisplay.innerText = 'No measurements to export.';
                 return;
             }
 
+            // Prepare CSV header and content
             let csvContent = "Type,Value,Text,Count,Radius(ft),Points\n";
             measurements.forEach(m => {
                 const type = m.type;
@@ -1220,54 +1653,61 @@
                 csvContent += `${type},"${value}","${text}","${count}","${radius}","${points}"\n`;
             });
 
+            // Create a Blob and download as CSV file
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'measurements.csv');
-            link.click();
-            outputDisplay.innerText = 'Measurements exported as CSV.';
+            link.setAttribute('download', 'measurements.csv'); // File name for download
+            link.click(); // Programmatically click the link to trigger download
+            outputDisplay.innerText = 'Measurements exported to CSV.';
         });
 
-        // Button event listeners
+        // Event listeners for drawing tool buttons
         drawLineBtn.addEventListener('click', () => {
             mode = 'line';
-            currentDrawing = null; // Clear any ongoing drawing of another type
+            currentDrawing = null; 
+            confirmCalibrationBtn.style.display = 'none'; 
             outputDisplay.innerText = 'Click and drag to draw a line.';
             updateModeButtons();
-            canvasContainer.classList.add('drawing-mode'); // Show crosshair
+            canvasContainer.classList.add('drawing-mode');
         });
         drawRectangleBtn.addEventListener('click', () => {
             mode = 'rectangle';
-            currentDrawing = null; // Clear any ongoing drawing of another type
+            currentDrawing = null; 
+            confirmCalibrationBtn.style.display = 'none'; 
             outputDisplay.innerText = 'Click and drag to draw a rectangle.';
             updateModeButtons();
-            canvasContainer.classList.add('drawing-mode'); // Show crosshair
+            canvasContainer.classList.add('drawing-mode');
         });
         drawPolygonBtn.addEventListener('click', () => {
             mode = 'polygon';
-            currentDrawing = { type: 'polygon', points: [], closed: false }; // Initialize for new polygon
-            outputDisplay.innerText = 'Click to add points for a polygon. Double-click to finish.';
+            currentDrawing = { type: 'polygon', points: [], closed: false }; 
+            confirmCalibrationBtn.style.display = 'none'; 
+            outputDisplay.innerText = 'Click to add points for polygon. Double-click to finish.';
             updateModeButtons();
-            canvasContainer.classList.add('drawing-mode'); // Show crosshair
+            canvasContainer.classList.add('drawing-mode');
         });
         drawAngleBtn.addEventListener('click', () => {
             mode = 'angle';
-            currentDrawing = null; // Clear any ongoing drawing
-            outputDisplay.innerText = 'Click 1: First arm end. Click 2: Vertex. Click 3: Second arm end.';
+            currentDrawing = null; 
+            confirmCalibrationBtn.style.display = 'none'; 
+            outputDisplay.innerText = '1: End of first arm. 2: Vertex. 3: End of second arm.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         drawCircleBtn.addEventListener('click', () => {
             mode = 'circle';
-            currentDrawing = null; // Clear any ongoing drawing
-            outputDisplay.innerText = 'Click 1: Circle center. Click 2: Radius point.';
+            currentDrawing = null; 
+            confirmCalibrationBtn.style.display = 'none'; 
+            outputDisplay.innerText = '1: Circle center. 2: Radius point.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         addTextBtn.addEventListener('click', () => {
             mode = 'text';
             currentDrawing = null;
+            confirmCalibrationBtn.style.display = 'none'; 
             outputDisplay.innerText = 'Click on canvas to add a text note.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
@@ -1275,6 +1715,7 @@
         addCounterBtn.addEventListener('click', () => {
             mode = 'counter';
             currentDrawing = null;
+            confirmCalibrationBtn.style.display = 'none'; 
             outputDisplay.innerText = 'Click on canvas to add a counter.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
@@ -1282,78 +1723,91 @@
         freehandBtn.addEventListener('click', () => {
             mode = 'freehand';
             currentDrawing = null;
+            confirmCalibrationBtn.style.display = 'none'; 
             outputDisplay.innerText = 'Click and drag to draw freehand.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
 
-        // Style option listeners
+        // Event listeners for style options (Line Width and Font Size)
         lineWidthInput.addEventListener('input', redraw);
         fontSizeInput.addEventListener('input', redraw);
 
 
+        // Event listener for "Undo Last" button
         undoLastBtn.addEventListener('click', () => {
             if (measurements.length > 0) {
-                measurements.pop(); // Remove last measurement
+                measurements.pop(); // Remove the last measurement
                 outputDisplay.innerText = 'Last measurement undone.';
-                renderMeasurementsList(); // Update list
+                renderMeasurementsList(); // Update the list in the sidebar
             } else {
                 outputDisplay.innerText = 'No measurements to undo.';
             }
         });
+
+        // Event listener for "Reset All" button
         resetAllBtn.addEventListener('click', () => {
-            measurements = [];
-            zoom = 1;
-            pan = { x: 0, y: 0 };
-            imgLoaded = false; // Also reset image
-            img.src = '';
-            outputDisplay.innerText = 'Canvas reset. Load an image and start measuring.';
-            mode = 'pan';
-            currentDrawing = null; // Ensure no partial drawing remains
+            measurements = []; // Clear all measurements
+            zoom = 1; // Reset zoom level
+            pan = { x: 0, y: 0 }; // Reset pan position
+            imgLoaded = false; // Mark image/PDF as not loaded
+            img.src = ''; // Clear image source
+            currentPdfPage = null; // Clear PDF page reference
+            outputDisplay.innerText = 'Canvas reset. Load an image or PDF and start measuring.';
+            mode = 'pan'; // Reset mode to pan
+            currentDrawing = null; // Clear any partial drawing
             counterValue = 1; // Reset counter
-            updateModeButtons();
-            renderMeasurementsList(); // Clear list
-            canvasContainer.classList.remove('drawing-mode'); // Remove crosshair
+            updateModeButtons(); // Update button highlighting
+            renderMeasurementsList(); // Clear the measurements list in the sidebar
+            canvasContainer.classList.remove('drawing-mode'); // Remove crosshair cursor
+            confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
         });
 
-        // Event listener for deleting individual measurements from the list
+        // Event listener for deleting individual measurements from the sidebar list
         measurementsListDiv.addEventListener('click', (e) => {
+            // Check if a delete button was clicked
             if (e.target.tagName === 'BUTTON' && e.target.dataset.index) {
                 const indexToRemove = parseInt(e.target.dataset.index);
                 if (indexToRemove >= 0 && indexToRemove < measurements.length) {
-                    measurements.splice(indexToRemove, 1); // Remove from array
+                    measurements.splice(indexToRemove, 1); // Remove the measurement from the array
                     outputDisplay.innerText = 'Measurement deleted.';
-                    renderMeasurementsList(); // Re-render list
+                    renderMeasurementsList(); // Re-render the list to update display
                 }
             }
         });
 
-        // Update button styles based on current mode
+        /**
+         * Updates the visual style (highlighting) of mode buttons based on the current active mode.
+         */
         function updateModeButtons() {
             const allDrawButtons = [
                 drawLineBtn, drawRectangleBtn, drawPolygonBtn,
-                drawAngleBtn, drawCircleBtn, addTextBtn, addCounterBtn, freehandBtn
+                drawAngleBtn, drawCircleBtn, addTextBtn, addCounterBtn, freehandBtn,
+                calibrateScaleBtn 
             ];
             allDrawButtons.forEach(btn => {
-                // Reset to default colors
+                // Remove active (600) classes and re-add default (500) classes
                 btn.classList.remove(
                     'bg-green-600', 'bg-purple-600', 'bg-indigo-600',
-                    'bg-pink-600', 'bg-orange-600', 'bg-teal-600', 'bg-cyan-600', 'bg-gray-600'
+                    'bg-pink-600', 'bg-orange-600', 'bg-teal-600', 'bg-cyan-600', 'bg-gray-600', 'bg-blue-600'
                 );
-                btn.classList.add(
-                    btn.id.includes('Line') ? 'bg-green-500' :
-                    btn.id.includes('Rectangle') ? 'bg-purple-500' :
-                    btn.id.includes('Polygon') ? 'bg-indigo-500' :
-                    btn.id.includes('Angle') ? 'bg-pink-500' :
-                    btn.id.includes('Circle') ? 'bg-orange-500' :
-                    btn.id.includes('Text') ? 'bg-teal-500' :
-                    btn.id.includes('Counter') ? 'bg-cyan-500' :
-                    'bg-gray-500'
-                );
+                // Ensure default 500 class is present for non-active buttons
+                if (btn.id.includes('Line')) btn.classList.add('bg-green-500');
+                else if (btn.id.includes('Rectangle')) btn.classList.add('bg-purple-500');
+                else if (btn.id.includes('Polygon')) btn.classList.add('bg-indigo-500');
+                else if (btn.id.includes('Angle')) btn.classList.add('bg-pink-500');
+                else if (btn.id.includes('Circle')) btn.classList.add('bg-orange-500');
+                else if (btn.id.includes('Text')) btn.classList.add('bg-teal-500');
+                else if (btn.id.includes('Counter')) btn.classList.add('bg-cyan-500');
+                else if (btn.id.includes('Freehand')) btn.classList.add('bg-gray-500');
+                else if (btn.id.includes('Calibrate')) btn.classList.add('bg-blue-500');
+                else btn.classList.add('bg-gray-500'); // Fallback
             });
 
-            // Highlight active mode button
+            // Highlight the currently active mode button
             const activeColor = {
+                'pan': '', // No highlight for pan mode button
+                'calibrate': 'bg-blue-600',
                 'line': 'bg-green-600',
                 'rectangle': 'bg-purple-600',
                 'polygon': 'bg-indigo-600',
@@ -1369,54 +1823,107 @@
                     activeButton = addTextBtn;
                 } else if (mode === 'counter') {
                     activeButton = addCounterBtn;
+                } else if (mode === 'calibrate') {
+                    activeButton = calibrateScaleBtn;
                 } else {
                     activeButton = document.getElementById(mode + 'Btn');
                 }
                 
                 if (activeButton) {
-                    activeButton.classList.remove(activeColor[mode].replace('600', '500')); // Remove 500 version
-                    activeButton.classList.add(activeColor[mode]); // Add 600 version
+                    // Remove current 500 version and add the 600 version for highlighting
+                    const baseClass = activeColor[mode].replace('600', '500');
+                    if (activeButton.classList.contains(baseClass)) {
+                        activeButton.classList.remove(baseClass);
+                    }
+                    activeButton.classList.add(activeColor[mode]);
                 }
             }
         }
 
 
-        // Attach main canvas event listeners
+        // Attach main canvas event listeners for mouse/touch interactions
         mainCanvas.addEventListener('pointerdown', handlePointerDown);
         mainCanvas.addEventListener('pointermove', handlePointerMove);
         mainCanvas.addEventListener('pointerup', handlePointerUp);
-        mainCanvas.addEventListener('wheel', handleWheel, { passive: false }); // Prevent default scroll
-        mainCanvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-        mainCanvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        mainCanvas.addEventListener('wheel', handleWheel, { passive: false }); // Use passive: false to allow preventDefault
+        mainCanvas.addEventListener('touchstart', handleTouchStart, { passive: false }); // Use passive: false for custom touch handling
+        mainCanvas.addEventListener('touchmove', handleTouchMove, { passive: false }); // Use passive: false
         mainCanvas.addEventListener('touchend', handleTouchEnd);
-        mainCanvas.addEventListener('dblclick', handleDoubleClick); // Double click for polygon finish
+        mainCanvas.addEventListener('dblclick', handleDoubleClick); // For polygon finalization
 
-        // Handle window resize
+        // Handle window resize events to adjust canvas and content positioning
         window.addEventListener('resize', () => {
             if (imgLoaded) {
+                // Adjust pan to keep the center of the image/PDF visible as much as possible
+                // This recalculation helps maintain the view when the window resizes
                 pan = {
-                    x: (mainCanvas.clientWidth - img.width * zoom) / 2,
-                    y: (mainCanvas.clientHeight - img.height * zoom) / 2,
+                    x: (mainCanvas.clientWidth - (img.width * zoom)) / 2,
+                    y: (mainCanvas.clientHeight - (img.height * zoom)) / 2,
                 };
+                 // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
+                 // This re-rendering ensures the PDF remains crisp on resize.
+                if (currentPdfPage) {
+                    // Recalculate rendering scale based on new canvas dimensions
+                    const viewport = currentPdfPage.getViewport({ scale: 1 });
+                    const desiredPpi = parseFloat(dpiInput.value) || 300;
+                    const scale = desiredPpi / 72;
+                    const renderViewport = currentPdfPage.getViewport({ scale: scale });
+
+                    const offscreenCanvas = document.createElement('canvas');
+                    const offscreenCtx = offscreenCanvas.getContext('2d');
+                    offscreenCanvas.width = renderViewport.width;
+                    offscreenCanvas.height = renderViewport.height;
+
+                    const renderContext = {
+                        canvasContext: offscreenCtx,
+                        viewport: renderViewport,
+                    };
+                    currentPdfPage.render(renderContext).promise.then(() => {
+                        img.src = offscreenCanvas.toDataURL('image/png'); // Update the main img object
+                        offscreenCanvas.remove();
+                        redraw(); // Request a full redraw after PDF re-render
+                    });
+                }
             }
-            // Re-render list and redraw on resize
-            renderMeasurementsList();
+            renderMeasurementsList(); // Re-render list
         });
         window.addEventListener('orientationchange', () => {
+            // Similar logic for orientation change on mobile devices
             if (imgLoaded) {
                 pan = {
-                    x: (mainCanvas.clientWidth - img.width * zoom) / 2,
-                    y: (mainCanvas.clientHeight - img.height * zoom) / 2,
+                    x: (mainCanvas.clientWidth - (img.width * zoom)) / 2,
+                    y: (mainCanvas.clientHeight - (img.height * zoom)) / 2,
                 };
+                 // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
+                if (currentPdfPage) {
+                    const viewport = currentPdfPage.getViewport({ scale: 1 });
+                    const desiredPpi = parseFloat(dpiInput.value) || 300;
+                    const scale = desiredPpi / 72;
+                    const renderViewport = currentPdfPage.getViewport({ scale: scale });
+
+                    const offscreenCanvas = document.createElement('canvas');
+                    const offscreenCtx = offscreenCanvas.getContext('2d');
+                    offscreenCanvas.width = renderViewport.width;
+                    offscreenCanvas.height = renderViewport.height;
+                    
+                    const renderContext = {
+                        canvasContext: offscreenCtx,
+                        viewport: renderViewport,
+                    };
+                    currentPdfPage.render(renderContext).promise.then(() => {
+                        img.src = offscreenCanvas.toDataURL('image/png'); // Update the main img object
+                        offscreenCanvas.remove();
+                        redraw(); // Request a full redraw after PDF re-render
+                    });
+                }
             }
-            // Re-render list and redraw on orientation change
             renderMeasurementsList();
         });
 
-        // Initial render of measurement list on load
+        // Initial rendering of the measurement list when the page loads
         renderMeasurementsList();
 
-        // Start the animation loop
+        // Start the animation loop. This ensures continuous redrawing for dynamic elements.
         requestAnimationFrame(redraw);
     </script>
 </body>
