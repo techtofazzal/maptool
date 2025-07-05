@@ -200,6 +200,89 @@
             border-top-left-radius: 12px;
             border-top-right-radius: 12px;
         }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-content h4 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #1e293b; /* Slate-800 */
+        }
+
+        .modal-content .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-content .modal-buttons button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .modal-content .modal-buttons button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .modal-content .modal-buttons .btn-primary {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+        }
+        .modal-content .modal-buttons .btn-primary:hover {
+            background-color: #2563eb; /* Blue-600 */
+        }
+
+        .modal-content .modal-buttons .btn-secondary {
+            background-color: #e2e8f0; /* Gray-200 */
+            color: #334155; /* Slate-700 */
+            border: 1px solid #cbd5e1; /* Gray-300 */
+        }
+        .modal-content .modal-buttons .btn-secondary:hover {
+            background-color: #cbd5e1; /* Gray-300 */
+        }
     </style>
 </head>
 <body>
@@ -307,7 +390,7 @@
         </label>
 
         <button
-            id="exportCsvBtn"
+            id="exportBtn"
             class="bg-gray-600 text-white hover:bg-gray-700 transition-colors duration-200"
         >
             Export
@@ -359,6 +442,18 @@
         Load an image or PDF and start measuring.
     </div>
 
+    <!-- Custom Modal for Export Options -->
+    <div id="exportModal" class="modal-overlay">
+        <div class="modal-content">
+            <h4>Export Options</h4>
+            <p>Choose your desired export format:</p>
+            <div class="modal-buttons">
+                <button id="exportCsvOptionBtn" class="btn-secondary">Export as CSV</button>
+                <button id="exportPngOptionBtn" class="btn-primary">Export as PNG</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Set up PDF.js worker source
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
@@ -370,12 +465,12 @@
         const drawLineBtn = document.getElementById('drawLineBtn');
         const drawRectangleBtn = document.getElementById('drawRectangleBtn');
         const drawPolygonBtn = document.getElementById('drawPolygonBtn');
-        const drawAngleBtn = document = document.getElementById('drawAngleBtn');
+        const drawAngleBtn = document.getElementById('drawAngleBtn');
         const drawCircleBtn = document.getElementById('drawCircleBtn');
         const addTextBtn = document.getElementById('addTextBtn');
         const addCounterBtn = document.getElementById('addCounterBtn');
         const freehandBtn = document.getElementById('freehandBtn');
-        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const exportBtn = document.getElementById('exportBtn'); // Renamed from exportCsvBtn
         const undoBtn = document.getElementById('undoBtn');
         const redoBtn = document.getElementById('redoBtn');
         const resetAllBtn = document.getElementById('resetAllBtn');
@@ -394,6 +489,11 @@
         const feetPerInchInput = document.getElementById('feetPerInchInput');
         const lineWidthInput = document.getElementById('lineWidthInput');
         const fontSizeInput = document.getElementById('fontSizeInput');
+
+        // Modal elements
+        const exportModal = document.getElementById('exportModal');
+        const exportCsvOptionBtn = document.getElementById('exportCsvOptionBtn');
+        const exportPngOptionBtn = document.getElementById('exportPngOptionBtn');
 
         // Global state variables
         let img = new Image();
@@ -1087,15 +1187,6 @@
                 }
             }
             
-            // Draw visual feedback for snapping (small circle at snapped point) - REMOVED AS REQUESTED
-            // if (snappedToPoint) {
-            //     ctx.fillStyle = 'lime'; // Green color for snapped point
-            //     ctx.beginPath();
-            //     ctx.arc(snappedToPoint.x, snappedToPoint.y, SNAP_RADIUS * 2 / zoom, 0, Math.PI * 2); // Larger dot for visibility
-            //     ctx.fill();
-            //     ctx.fillStyle = 'blue'; // Reset fill style
-            // }
-
             ctx.restore(); // Restore the context to its original state before this redraw
 
             // Draw magnifier content if active
@@ -1507,7 +1598,7 @@
                             const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
                             const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
                             const areaShotok = areaSqFt / 435.6;
-                            meas.radius = radius / scaleFactorPixelsPerUnit; // Update radius in feet
+                            meas.radius = radius / scaleFactorPixelsPerUnit;
                             meas.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
                             meas.areaSqFt = areaSqFt; // Store numeric value
                             meas.areaShotok = areaShotok; // Store numeric value
@@ -2059,9 +2150,48 @@
             canvasContainer.classList.remove('drawing-mode'); // Remove crosshair cursor
         });
 
+        /**
+         * Exports the current canvas content as a PNG image.
+         */
+        function exportCanvasAsPng() {
+            if (!imgLoaded) {
+                outputDisplay.innerText = 'No image or PDF loaded to export.';
+                return;
+            }
 
-        // Event listener for "Export CSV" button
-        exportCsvBtn.addEventListener('click', () => {
+            // Create a temporary canvas to draw the current state without UI elements
+            const tempExportCanvas = document.createElement('canvas');
+            const tempExportCtx = tempExportCanvas.getContext('2d');
+
+            // Set the temporary canvas dimensions to match the current visible content area
+            // This ensures the exported image is not excessively large or cropped incorrectly.
+            // For simplicity, we'll use the mainCanvas's current client dimensions, scaled by DPR.
+            tempExportCanvas.width = mainCanvas.clientWidth * dpr;
+            tempExportCanvas.height = mainCanvas.clientHeight * dpr;
+
+            // Draw the content from the main canvas onto the temporary canvas
+            // Use drawImage to copy the current visual state, including transforms
+            tempExportCtx.drawImage(mainCanvas, 0, 0, tempExportCanvas.width, tempExportCanvas.height);
+
+            // Get the image data URL from the temporary canvas
+            const imageDataURL = tempExportCanvas.toDataURL('image/png');
+
+            // Create a temporary link element for downloading
+            const link = document.createElement('a');
+            link.href = imageDataURL;
+            link.download = 'measurements_export.png'; // Suggested filename
+            document.body.appendChild(link); // Append to body (required for Firefox)
+            link.click(); // Programmatically click the link to trigger download
+            document.body.removeChild(link); // Clean up the link element
+            tempExportCanvas.remove(); // Clean up the temporary canvas
+
+            outputDisplay.innerText = 'Canvas exported as PNG.';
+        }
+
+        /**
+         * Exports the current measurements data as a CSV file.
+         */
+        function exportMeasurementsAsCsv() {
             if (measurements.length === 0) {
                 outputDisplay.innerText = 'No measurements to export.';
                 return;
@@ -2089,6 +2219,26 @@
             link.setAttribute('download', 'measurements.csv'); // File name for download
             link.click(); // Programmatically click the link to trigger download
             outputDisplay.innerText = 'Measurements exported to CSV.';
+        }
+
+        // Event listener for "Export" button (now shows modal)
+        exportBtn.addEventListener('click', () => {
+            if (!imgLoaded && measurements.length === 0) {
+                outputDisplay.innerText = 'Nothing to export. Load an image/PDF or draw measurements first.';
+                return;
+            }
+            exportModal.classList.add('show'); // Show the modal
+        });
+
+        // Event listeners for modal buttons
+        exportCsvOptionBtn.addEventListener('click', () => {
+            exportMeasurementsAsCsv();
+            exportModal.classList.remove('show'); // Hide the modal
+        });
+
+        exportPngOptionBtn.addEventListener('click', () => {
+            exportCanvasAsPng();
+            exportModal.classList.remove('show'); // Hide the modal
         });
 
         // Event listeners for drawing tool buttons
@@ -2338,8 +2488,8 @@
                     x: (mainCanvas.clientWidth - (img.width * zoom)) / 2,
                     y: (mainCanvas.clientHeight - (img.height * zoom)) / 2,
                 };
-                   // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
-                   // This re-rendering ensures the PDF remains crisp on resize.
+                    // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
+                    // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
                     // Recalculate rendering scale based on new canvas dimensions
                     const viewport = currentPdfPage.getViewport({ scale: 1 });
@@ -2372,8 +2522,8 @@
                     x: (mainCanvas.clientWidth - (img.width * zoom)) / 2,
                     y: (mainCanvas.clientHeight - (img.height * zoom)) / 2,
                 };
-                   // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
-                   // This re-rendering ensures the PDF remains crisp on resize.
+                    // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
+                    // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
                     const viewport = currentPdfPage.getViewport({ scale: 1 });
                     const desiredPpi = parseFloat(dpiInput.value) || 300;
