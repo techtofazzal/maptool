@@ -51,6 +51,7 @@
         #toolbar button.bg-gray-600 { --tw-gradient-from: #4b5563; --tw-gradient-to: #374151; } /* Gray-600 to Gray-700 for export */
         #toolbar button.bg-yellow-500 { --tw-gradient-from: #f59e0b; --tw-gradient-to: #d97706; } /* Yellow-500 to Yellow-600 */
         #toolbar button.bg-red-500 { --tw-gradient-from: #ef4444; --tw-gradient-to: #dc2626; } /* Red-500 to Red-600 */
+        #toolbar button.bg-angle-snap { --tw-gradient-from: #60a5fa; --tw-gradient-to: #3b82f6; } /* Blue-400 to Blue-500 for angle snap */
 
 
         #toolbar button:hover {
@@ -59,7 +60,9 @@
             filter: brightness(1.1); /* Slightly brighter on hover */
         }
         #toolbar label input[type="number"],
-        #toolbar label input[type="range"] {
+        #toolbar label input[type="range"],
+        #toolbar label input[type="color"],
+        #toolbar label select {
             padding: 5px 8px; /* Further reduced padding for inputs */
             font-size: 0.8rem; /* Smaller font for inputs */
             border-radius: 8px; /* Rounded corners for inputs */
@@ -297,14 +300,6 @@
             />
         </label>
 
-        <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
-            DPI:
-            <input type="number" id="dpiInput" value="400" min="1" class="w-16 px-2 py-1 rounded-full text-sm bg-gray-200" />
-        </label>
-        <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
-            Feet/Inch:
-            <input type="number" id="feetPerInchInput" value="330" min="0.1" step="0.1" class="w-16 px-2 py-1 rounded-full text-sm bg-gray-200" />
-        </label>
         <button
             id="calibrateScaleBtn"
             class="bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200"
@@ -362,19 +357,16 @@
             Text
         </button>
 
-        <button
-            id="addCounterBtn"
-            class="bg-cyan-500 text-white hover:bg-cyan-600 transition-colors duration-200"
-        >
-            Counter
-        </button>
-
-        <button
-            id="freehandBtn"
-            class="bg-gray-500 text-white hover:bg-gray-600 transition-colors duration-200"
-        >
-            Freehand
-        </button>
+        <div class="relative">
+            <button id="scaleButton" class="bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200">
+                Scale: 16 inch = 1 mile
+            </button>
+            <div id="scaleDropdown" class="absolute hidden bg-white shadow-lg rounded-md mt-1 z-20">
+                <button data-scale="16inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">16 inch = 1 mile</button>
+                <button data-scale="32inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">32 inch = 1 mile</button>
+                <button data-scale="64inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">64 inch = 1 mile</button>
+            </div>
+        </div>
 
         <span class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700 border border-gray-300 shadow-sm">
             Unit: ft (Feet)
@@ -387,6 +379,17 @@
         <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
             Font Size:
             <input type="range" id="fontSizeInput" min="10" max="30" value="14" class="w-20" />
+        </label>
+        <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
+            Color:
+            <input type="color" id="colorPicker" value="#FF0000" class="w-12 h-8 rounded-md border border-gray-300 cursor-pointer" />
+        </label>
+        <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
+            Line Style:
+            <select id="lineStyleSelect" class="px-2 py-1 rounded-md text-sm bg-gray-200">
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+            </select>
         </label>
 
         <button
@@ -468,9 +471,7 @@
         const drawAngleBtn = document.getElementById('drawAngleBtn');
         const drawCircleBtn = document.getElementById('drawCircleBtn');
         const addTextBtn = document.getElementById('addTextBtn');
-        const addCounterBtn = document.getElementById('addCounterBtn');
-        const freehandBtn = document.getElementById('freehandBtn');
-        const exportBtn = document.getElementById('exportBtn'); // Renamed from exportCsvBtn
+        const exportBtn = document.getElementById('exportBtn');
         const undoBtn = document.getElementById('undoBtn');
         const redoBtn = document.getElementById('redoBtn');
         const resetAllBtn = document.getElementById('resetAllBtn');
@@ -484,11 +485,16 @@
         const confirmCalibrationBtn = document.getElementById('confirmCalibrationBtn');
         const measurementsSidebar = document.getElementById('measurements-sidebar');
         const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+        
+        // New Scale elements
+        const scaleButton = document.getElementById('scaleButton');
+        const scaleDropdown = document.getElementById('scaleDropdown');
 
-        const dpiInput = document.getElementById('dpiInput');
-        const feetPerInchInput = document.getElementById('feetPerInchInput');
+
         const lineWidthInput = document.getElementById('lineWidthInput');
         const fontSizeInput = document.getElementById('fontSizeInput');
+        const colorPicker = document.getElementById('colorPicker');
+        const lineStyleSelect = document.getElementById('lineStyleSelect');
 
         // Modal elements
         const exportModal = document.getElementById('exportModal');
@@ -506,19 +512,25 @@
         let selectedPoint = null; // Stores info about a point being dragged/edited { measurementIndex, pointIndex, type }
         let mode = 'pan';
         let measurements = [];
-        let counterValue = 1;
+        let counterValue = 1; // Kept for text/csv export compatibility, though counter button removed
         let snappedToPoint = null; // Stores the {x, y} of the point currently being snapped to, for visual feedback
+
+        let currentColor = colorPicker.value; // Initialize with default color picker value
+        let currentLineStyle = lineStyleSelect.value; // Initialize with default line style value
+        
+        // Fixed DPI for map images
+        const PIXELS_PER_INCH_FIXED = 400; 
+        let FEET_PER_INCH_CURRENT; // This will be set by scale selection
+        let scaleFactorPixelsPerUnit;
+
+        // Default scale setting
+        let currentScaleSetting = '16inch=1mile'; 
 
         // History for Undo/Redo
         let measurementHistory = [];
         let historyPointer = -1;
 
         const unit = 'ft';
-
-        // Scale factors: dynamically updated from UI inputs or calibration
-        let PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
-        let FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
-        let scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
 
         const HIT_RADIUS_BASE = 10;
         const SNAP_RADIUS = 3;
@@ -579,22 +591,15 @@
             const allSnappablePoints = [];
             
             measurements.forEach(m => {
-                // Freehand not included for snapping points (too many)
-                if (m.type !== 'freehand' && m.type !== 'text' && m.type !== 'counter') {
+                if (m.type !== 'text') { // Text has only one point, no need for complex snapping
                     m.points.forEach(p => allSnappablePoints.push(p));
-                } else if (m.type === 'text' || m.type === 'counter') {
-                    // Include text and counter points for snapping
-                    allSnappablePoints.push(m.points[0]);
                 }
-
-
                 // Add midpoints of segments for snapping (Lines, Rectangles, Polygons, Angles)
                 if (m.type === 'line' || m.type === 'calibration') {
                     const midX = (m.points[0].x + m.points[1].x) / 2;
                     const midY = (m.points[0].y + m.points[1].y) / 2;
                     allSnappablePoints.push({ x: midX, y: midY });
                 } else if (m.type === 'rectangle') {
-                    // For rectangles, use the four actual corner points for snapping
                     const [c1, c2, c3, c4] = m.points;
                     allSnappablePoints.push(c1, c2, c3, c4);
                     // Also add midpoints of the sides
@@ -612,14 +617,14 @@
                         const midY = (pA.y + pB.y) / 2;
                         allSnappablePoints.push({x: midX, y: midY});
                     }
-                } else if (m.type === 'angle' && m.points.length === 3) { // Snap to midpoints of angle arms
+                } else if (m.type === 'angle' && m.points.length === 3) {
                     const [p1, p2, p3] = m.points;
                     const mid1X = (p1.x + p2.x) / 2;
                     const mid1Y = (p1.y + p2.y) / 2;
                     const mid2X = (p2.x + p3.x) / 2;
                     const mid2Y = (p2.y + p3.y) / 2;
                     allSnappablePoints.push({x: mid1X, y: mid1Y}, {x: mid2X, y: mid2Y});
-                } else if (m.type === 'circle' && m.points.length === 2) { // Snap to circle center and a point on circumference
+                } else if (m.type === 'circle' && m.points.length === 2) {
                     allSnappablePoints.push(m.points[0]); // center
                     const radius = Math.hypot(m.points[1].x - m.points[0].x, m.points[1].y - m.points[0].y);
                     // Add cardinal points on circumference for better snapping
@@ -753,7 +758,7 @@
             }
 
             if (closestSnapOnLine) {
-                snappedToPoint = closestSnapOnLine; // Store the snapped point (even if it's on a line) for visual feedback
+                snappedToPoint = closestSnapOnLine; // Store the snapped point for visual feedback
                 return closestSnapOnLine;
             }
 
@@ -775,37 +780,45 @@
             // Point radius depends on lineWidthInput.value for visual consistency.
             const pointRadius = parseFloat(lineWidthInput.value) * 1.5;
             context.arc(x, y, pointRadius, 0, Math.PI * 2);
+            context.fillStyle = 'blue'; // Always draw points in blue
             context.fill();
         }
 
         /**
-         * Helper: Draws an arrowhead at the end of a line. (Currently unused in the UI but available).
+         * Helper: Draws an arrowhead at the end of a line.
          * @param {CanvasRenderingContext2D} context - The canvas rendering context.
          * @param {{x: number, y: number}} p1 - Start point of the line.
          * @param {{x: number, y: number}} p2 - End point of the line (where arrowhead is drawn).
          * @param {number} size - Size of the arrowhead.
+         * @param {number} lineWidth - Current line width, for scaling the arrowhead.
          */
-        function drawArrowhead(context, p1, p2, size) {
+        function drawArrowhead(context, p1, p2, size, lineWidth) {
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
             context.save();
             context.translate(p2.x, p2.y);
             context.rotate(angle);
             context.beginPath();
-            context.moveTo(-size, -size / 2);
+            // Arrowhead size scales with line width and zoom
+            const arrowSize = size * (lineWidth / 2); // Base size * (current line width / default line width)
+            context.moveTo(-arrowSize, -arrowSize / 2);
             context.lineTo(0, 0);
-            context.lineTo(-size, size / 2);
-            context.lineTo(-size, size / 2);
+            context.lineTo(-arrowSize, arrowSize / 2);
+            context.closePath(); // Close the path to fill it
             context.fill();
             context.restore();
         }
 
         /**
          * Helper: Sets the line style (e.g., solid, dashed) for the given context.
-         * Currently always sets a solid line.
          * @param {CanvasRenderingContext2D} context - The canvas rendering context.
+         * @param {string} style - 'solid' or 'dashed'.
          */
-        function setLineStyle(context) {
-            context.setLineDash([]); // Solid line
+        function setLineStyle(context, style) {
+            if (style === 'dashed') {
+                context.setLineDash([10, 5]); // 10 pixels on, 5 pixels off
+            } else {
+                context.setLineDash([]); // Solid line
+            }
         }
 
         /**
@@ -912,13 +925,13 @@
 
             // Draw all existing measurements stored in the 'measurements' array
             measurements.forEach((m) => {
-                ctx.strokeStyle = 'red'; // Line color for measurements
+                ctx.strokeStyle = m.color || 'red'; // Use stored color or default to red
                 ctx.lineWidth = currentLineWidth / zoom; // Adjust line width based on zoom
-                ctx.fillStyle = 'blue'; // Text and point color
+                ctx.fillStyle = m.color || 'blue'; // Use stored color or default to blue for text
                 ctx.font = `${currentFontSize / zoom}px sans-serif`; // Adjust font size based on zoom
                 ctx.textAlign = 'center'; // Center text for measurements
                 ctx.textBaseline = 'middle'; // Center text vertically
-                setLineStyle(ctx); // Always solid line
+                setLineStyle(ctx, m.lineStyle || 'solid'); // Use stored line style or default to solid
 
                 if (m.type === 'line' || m.type === 'calibration') {
                     const [p1, p2] = m.points;
@@ -926,8 +939,8 @@
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
-                    drawPoint(ctx, p1.x, p1.y, zoom);
-                    drawPoint(ctx, p2.x, p2.y, zoom);
+                    drawPoint(ctx, p1.x, p1.y, zoom); // Points are always blue
+                    drawPoint(ctx, p2.x, p2.y, zoom); // Points are always blue
                     if (m.value) { // Display value for calibration line
                         const midX = (p1.x + p2.x) / 2;
                         const midY = (p1.y + p2.y) / 2;
@@ -948,7 +961,7 @@
                     ctx.stroke(); // Draw the rectangle outline
                     ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent light gray fill */
                     ctx.fill(); // Fill the rectangle
-                    ctx.fillStyle = 'blue'; /* Reset fillStyle for text/points */
+                    ctx.fillStyle = m.color || 'blue'; /* Reset fillStyle for text */
 
                     // Draw segment measurements (length of each side)
                     const segments = [
@@ -964,10 +977,10 @@
                     });
 
                     // Draw points at each corner
-                    drawPoint(ctx, c1.x, c1.y, zoom);
-                    drawPoint(ctx, c2.x, c2.y, zoom);
-                    drawPoint(ctx, c3.x, c3.y, zoom);
-                    drawPoint(ctx, c4.x, c4.y, zoom);
+                    drawPoint(ctx, c1.x, c1.y, zoom); // Points are always blue
+                    drawPoint(ctx, c2.x, c2.y, zoom); // Points are always blue
+                    drawPoint(ctx, c3.x, c3.y, zoom); // Points are always blue
+                    drawPoint(ctx, c4.x, c4.y, zoom); // Points are always blue
 
                     if (m.areaSqFt !== undefined && m.areaShotok !== undefined) {
                         // Center area text
@@ -988,7 +1001,7 @@
                             ctx.closePath(); // Close the polygon path if marked as closed
                             ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; /* Transparent light gray fill */
                             ctx.fill(); // Fill the polygon
-                            ctx.fillStyle = 'blue'; /* Reset fillStyle for text/points */
+                            ctx.fillStyle = m.color || 'blue'; /* Reset fillStyle for text */
                         }
                         ctx.stroke(); // Draw the polygon outline
 
@@ -1003,7 +1016,7 @@
                             ctx.fillText(length.split(' / ')[0], midX, midY - (currentFontSize / zoom / 2 + 2));
                         }
 
-                        m.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom)); // Draw points at each vertex
+                        m.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom)); // Points are always blue
                         if (m.closed && m.areaSqFt !== undefined && m.areaShotok !== undefined) {
                             // Display area in the centroid of the polygon
                             let sumX = 0, sumY = 0;
@@ -1022,9 +1035,9 @@
                     ctx.lineTo(p2.x, p2.y);
                     ctx.lineTo(p3.x, p3.y);
                     ctx.stroke(); // Draw the two arms of the angle
-                    drawPoint(ctx, p1.x, p1.y, zoom);
-                    drawPoint(ctx, p2.x, p2.y, zoom);
-                    drawPoint(ctx, p3.x, p3.y, zoom);
+                    drawPoint(ctx, p1.x, p1.y, zoom); // Points are always blue
+                    drawPoint(ctx, p2.x, p2.y, zoom); // Points are always blue
+                    drawPoint(ctx, p3.x, p3.y, zoom); // Points are always blue
 
                     // Draw an arc to visually represent the angle
                     const angleRadius = 30 / zoom; // Size of the arc, adjusted for zoom
@@ -1052,8 +1065,8 @@
                     ctx.beginPath();
                     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2); // Draw the circle
                     ctx.stroke();
-                    drawPoint(ctx, center.x, center.y, zoom); // Draw center point
-                    drawPoint(ctx, radiusPoint.x, radiusPoint.y, zoom); // Draw radius point
+                    drawPoint(ctx, center.x, center.y, zoom); // Points are always blue
+                    drawPoint(ctx, radiusPoint.x, radiusPoint.y, zoom); // Points are always blue
                     if (m.value) {
                         ctx.fillText(m.value, center.x, center.y - radius - (currentFontSize / zoom / 2 + 2)); // Display value above circle
                     }
@@ -1061,50 +1074,31 @@
                     const radiusLength = calculateLineLength(center, radiusPoint);
                     ctx.fillText("Radius: " + radiusLength.split(' / ')[0], (center.x + radiusPoint.x) / 2, (center.y + radiusPoint.y) / 2 - (currentFontSize / zoom / 2 + 2));
                 } else if (m.type === 'text') {
-                    ctx.fillStyle = 'blue'; // Text color
+                    ctx.fillStyle = m.color || 'blue'; // Text color
                     ctx.font = `${currentFontSize / zoom}px sans-serif`;
                     ctx.fillText(m.text, m.points[0].x, m.points[0].y); // Draw text at its point
-                } else if (m.type === 'counter') {
-                    ctx.fillStyle = 'blue'; // Counter color
-                    ctx.font = `${currentFontSize / zoom}px sans-serif`;
-                    ctx.fillText(m.count, m.points[0].x, m.points[0].y); // Draw counter number
-                    drawPoint(ctx, m.points[0].x, m.points[0].y, zoom); // Draw point for counter
-                } else if (m.type === 'freehand') {
-                    if (m.points.length > 1) {
-                        ctx.beginPath();
-                        ctx.moveTo(m.points[0].x, m.points[0].y);
-                        for (let i = 1; i < m.points.length; i++) {
-                            ctx.lineTo(m.points[i].x, m.points[i].y);
-                        }
-                        ctx.stroke(); // Draw the freehand path
-                    }
-                    if (m.value) { // Display total length for freehand path
-                        const firstPoint = m.points[0];
-                        ctx.fillText(m.value, firstPoint.x + 5 / zoom, firstPoint.y - (currentFontSize / zoom / 2 + 2));
-                    }
                 }
             });
 
-            // Ensure current drawing (temporary) is also drawn with a solid line style
-            setLineStyle(ctx);
+            // Ensure current drawing (temporary) is also drawn with selected style
+            ctx.strokeStyle = currentColor;
+            ctx.fillStyle = currentColor; // This will be the fill color for temporary drawings (e.g., rect fill)
+            ctx.lineWidth = currentLineWidth / zoom;
+            ctx.font = `${currentFontSize / zoom}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            setLineStyle(ctx, currentLineStyle);
 
             // Draw current temporary drawing (e.g., line as it's being dragged, polygon segments)
             if (currentDrawing) {
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = currentLineWidth / zoom;
-                ctx.fillStyle = 'blue';
-                ctx.font = `${currentFontSize / zoom}px sans-serif`;
-                ctx.textAlign = 'center'; // Center text for temporary measurements
-                ctx.textBaseline = 'middle'; // Center text vertically
-
                 if (mode === 'line') { // Drag-to-draw tools
                     const [p1, p2] = currentDrawing.points;
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
-                    drawPoint(ctx, p1.x, p1.y, zoom);
-                    drawPoint(ctx, p2.x, p2.y, zoom);
+                    drawPoint(ctx, p1.x, p1.y, zoom); // Points are always blue
+                    drawPoint(ctx, p2.x, p2.y, zoom); // Points are always blue
                 } else if (mode === 'rectangle') { // Rectangle drawing temporary state
                     const [p1, currentMousePoint] = currentDrawing.points;
                     const c1 = { x: p1.x, y: p1.y };
@@ -1120,10 +1114,10 @@
                     ctx.closePath();
                     ctx.stroke();
 
-                    drawPoint(ctx, c1.x, c1.y, zoom);
-                    drawPoint(ctx, c2.x, c2.y, zoom);
-                    drawPoint(ctx, c3.x, c3.y, zoom);
-                    drawPoint(ctx, c4.x, c4.y, zoom);
+                    drawPoint(ctx, c1.x, c1.y, zoom); // Points are always blue
+                    drawPoint(ctx, c2.x, c2.y, zoom); // Points are always blue
+                    drawPoint(ctx, c3.x, c3.y, zoom); // Points are always blue
+                    drawPoint(ctx, c4.x, c4.y, zoom); // Points are always blue
                 } else if (mode === 'polygon') {
                     if (currentDrawing.points.length > 0) {
                         ctx.beginPath();
@@ -1135,10 +1129,10 @@
                         const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                         ctx.lineTo(mouseCanvasCoords.x, mouseCanvasCoords.y);
                         ctx.stroke();
-                        currentDrawing.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom));
+                        currentDrawing.points.forEach(p => drawPoint(ctx, p.x, p.y, zoom)); // Points are always blue
                     }
                 } else if (mode === 'angle' && currentDrawing.points.length > 0) {
-                    drawPoint(ctx, currentDrawing.points[0].x, currentDrawing.points[0].y, zoom); // First point
+                    drawPoint(ctx, currentDrawing.points[0].x, currentDrawing.points[0].y, zoom); // Points are always blue
                     if (currentDrawing.points.length === 1) { // Drawing first arm
                         const mouseCanvasCoords = getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
                         ctx.beginPath();
@@ -1153,8 +1147,8 @@
                         ctx.lineTo(p2.x, p2.y);
                         ctx.lineTo(mouseCanvasCoords.x, mouseCanvasCoords.y);
                         ctx.stroke();
-                        drawPoint(ctx, p1.x, p1.y, zoom);
-                        drawPoint(ctx, p2.x, p2.y, zoom);
+                        drawPoint(ctx, p1.x, p1.y, zoom); // Points are always blue
+                        drawPoint(ctx, p2.x, p2.y, zoom); // Points are always blue
                     }
                 } else if (mode === 'circle' && currentDrawing.points.length > 0) {
                     const [center] = currentDrawing.points;
@@ -1163,14 +1157,7 @@
                     ctx.beginPath();
                     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
                     ctx.stroke();
-                    drawPoint(ctx, center.x, center.y, zoom);
-                } else if (mode === 'freehand' && currentDrawing.points.length > 1) {
-                    ctx.beginPath();
-                    ctx.moveTo(currentDrawing.points[0].x, currentDrawing.points[0].y);
-                    for (let i = 1; i < currentDrawing.points.length; i++) {
-                        ctx.lineTo(currentDrawing.points[i].x, currentDrawing.points[i].y);
-                    }
-                    ctx.stroke();
+                    drawPoint(ctx, center.x, center.y, zoom); // Points are always blue
                 } else if (mode === 'calibrate' && currentDrawing.points.length >= 1) { // Live line for calibration (1 or 2 points)
                     const p1 = currentDrawing.points[0];
                     const p2 = currentDrawing.points.length === 2 ? currentDrawing.points[1] : getSnappedCanvasCoords(lastPointerClientX, lastPointerClientY);
@@ -1178,11 +1165,12 @@
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
-                    drawPoint(ctx, p1.x, p1.y, zoom);
+                    drawPoint(ctx, p1.x, p1.y, zoom); // Points are always blue
                     if (currentDrawing.points.length === 1) { // Only draw second point if still selecting
-                        drawPoint(ctx, p2.x, p2.y, zoom);
-                    } else if (currentDrawing.points.length === 2) { // Draw both points if selected for editing
-                        drawPoint(ctx, currentDrawing.points[1].x, currentDrawing.points[1].y, zoom);
+                        drawPoint(ctx, p2.x, p2.y, zoom); // Points are always blue
+                    } else if (currentDrawing.points.length === 2) // Draw both points if selected for editing
+                    {
+                        drawPoint(ctx, currentDrawing.points[1].x, currentDrawing.points[1].y, zoom); // Points are always blue
                     }
                 }
             }
@@ -1263,10 +1251,6 @@
                 } else if (m.type === 'text') {
                     displayText = `Text: "${m.text}"`;
                     buttonsHtml += `<button data-index="${index}" class="edit-btn">Edit</button>`;
-                } else if (m.type === 'counter') {
-                    displayText = `Counter: ${m.count}`;
-                } else if (m.type === 'freehand') {
-                    displayText = `Freehand Drawing (Length: ${m.value})`;
                 } else if (m.type === 'calibration') {
                     displayText = `Calibration: ${m.value}`;
                 }
@@ -1390,7 +1374,9 @@
                         id: Date.now() + '-angle',
                         type: 'angle',
                         points: currentDrawing.points,
-                        value: calculateAngle(p1, p2, p3)
+                        value: calculateAngle(p1, p2, p3),
+                        color: currentColor, // Save current color
+                        lineStyle: currentLineStyle // Save current line style
                     });
                     outputDisplay.innerText = 'Angle drawn. Value: ' + measurements[measurements.length - 1].value;
                     currentDrawing = null;
@@ -1423,7 +1409,9 @@
                         radius: radius / scaleFactorPixelsPerUnit, // Radius in feet
                         value: `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`,
                         areaSqFt: areaSqFt, // Store numeric value
-                        areaShotok: areaShotok // Store numeric value
+                        areaShotok: areaShotok, // Store numeric value
+                        color: currentColor, // Save current color
+                        lineStyle: currentLineStyle // Save current line style
                     });
                     outputDisplay.innerText = 'Circle drawn. ' + measurements[measurements.length - 1].value;
                     currentDrawing = null;
@@ -1443,7 +1431,8 @@
                         id: Date.now() + '-text',
                         type: 'text',
                         points: [{ x, y }],
-                        text: textInput.trim()
+                        text: textInput.trim(),
+                        color: currentColor // Save current color
                     });
                     outputDisplay.innerText = 'Text note added.';
                     renderMeasurementsList();
@@ -1456,25 +1445,6 @@
                 updateModeButtons();
                 canvasContainer.classList.remove('drawing-mode');
                 return;
-            } else if (mode === 'counter') {
-                measurements.push({
-                    id: Date.now() + '-counter',
-                    type: 'counter',
-                    points: [{ x, y }],
-                    count: counterValue++ // Use and increment global counter
-                });
-                outputDisplay.innerText = `Counter ${counterValue - 1} added.`;
-                renderMeasurementsList();
-                magnifierDiv.style.display = 'none';
-                mode = 'pan'; // Reset mode after placing counter
-                updateModeButtons();
-                canvasContainer.classList.remove('drawing-mode');
-                saveState(); // Save state after completing counter drawing
-                return;
-            } else if (mode === 'freehand') {
-                currentDrawing = { type: 'freehand', points: [{ x, y }] };
-                outputDisplay.innerText = 'Click and drag to draw freehand.';
-                magnifierDiv.style.display = 'block';
             }
 
             // Check for point selection for editing existing measurements (only in pan mode or if no drawing in progress)
@@ -1484,9 +1454,9 @@
                 
                 // Check existing measurements
                 for (const m of measurements) {
-                    // Include text and counter in point selection for dragging
-                    if (m.type === 'text' || m.type === 'counter') {
-                        const p = m.points[0]; // Text and counter only have one point
+                    // Include text in point selection for dragging
+                    if (m.type === 'text') {
+                        const p = m.points[0]; // Text only has one point
                         const screenP = getScreenCoords(p.x, p.y);
                         // A larger hit radius for text to make it easier to select
                         const effectiveHitRadius = HIT_RADIUS_BASE * 2;
@@ -1496,7 +1466,7 @@
                             magnifierDiv.style.display = 'block';
                             return; // Stop checking after finding one
                         }
-                    } else if (m.type !== 'freehand') { // For other geometric shapes (excluding freehand, as it's a path)
+                    } else { // For other geometric shapes
                         for (let pIdx = 0; pIdx < m.points.length; pIdx++) {
                             const p = m.points[pIdx];
                             const screenP = getScreenCoords(p.x, p.y);
@@ -1537,7 +1507,7 @@
             lastPointerClientY = e.clientY;
 
             // Get canvas coordinates, potentially snapped to existing points or lines
-            const { x: currentCanvasX, y: currentCanvasY } = getSnappedCanvasCoords(e.clientX, e.clientY);
+            let { x: currentCanvasX, y: currentCanvasY } = getSnappedCanvasCoords(e.clientX, e.clientY);
 
             if (selectedPoint) {
                 // If a point of an existing measurement or currentDrawing is selected for editing
@@ -1603,9 +1573,8 @@
                             meas.areaSqFt = areaSqFt; // Store numeric value
                             meas.areaShotok = areaShotok; // Store numeric value
                         }
-                    } else if (selectedPoint.type === 'text' || selectedPoint.type === 'counter') {
-                        // Update position for text or counter
-                        // For text/counter, only pointIndex 0 is relevant.
+                    } else if (selectedPoint.type === 'text') {
+                        // Update position for text
                         meas.points[0] = { x: currentCanvasX, y: currentCanvasY };
                     }
                 } else if (selectedPoint.measurementIndex === -1 && selectedPoint.type === 'calibrate') {
@@ -1620,16 +1589,12 @@
                 pan.y += (e.clientY - startPoint.clientY);
                 startPoint.clientX = e.clientX;
                 startPoint.clientY = e.clientY;
-            } else if (currentDrawing && isDragging && (mode === 'line' || mode === 'rectangle' || mode === 'freehand')) {
-                // For drag-to-draw tools (line, rectangle, freehand), update the second point or add points
+            } else if (currentDrawing && isDragging && (mode === 'line' || mode === 'rectangle')) {
+                // For drag-to-draw tools (line, rectangle), update the second point
                 if (mode === 'line') {
                     currentDrawing.points[1] = { x: currentCanvasX, y: currentCanvasY };
                 } else if (mode === 'rectangle') {
-                    // During drawing, currentDrawing.points holds the start point (0) and the current mouse position (1)
                     currentDrawing.points[1] = { x: currentCanvasX, y: currentCanvasY };
-                }
-                else if (mode === 'freehand') {
-                    currentDrawing.points.push({ x: currentCanvasX, y: currentCanvasY });
                 }
             }
             // For multi-click drawing modes (polygon, angle, circle, calibrate with 1 point),
@@ -1657,14 +1622,16 @@
 
             magnifierDiv.style.display = 'none'; // Deactivate magnifier on pointer up
 
-            // Finalize drawing for drag-to-draw tools (line, rectangle, freehand)
-            if (currentDrawing && (mode === 'line' || mode === 'rectangle' || mode === 'freehand')) {
+            // Finalize drawing for drag-to-draw tools (line, rectangle)
+            if (currentDrawing && (mode === 'line' || mode === 'rectangle')) {
                 if (mode === 'line') {
                     const line = {
                         id: Date.now() + '-line',
                         type: 'line',
                         points: currentDrawing.points,
-                        value: calculateLineLength(currentDrawing.points[0], currentDrawing.points[1])
+                        value: calculateLineLength(currentDrawing.points[0], currentDrawing.points[1]),
+                        color: currentColor, // Save current color
+                        lineStyle: currentLineStyle // Save current line style
                     };
                     measurements.push(line);
                     outputDisplay.innerText = 'Line drawn. Length: ' + line.value;
@@ -1684,31 +1651,12 @@
                         points: rectPoints, // Store all 4 points
                         value: `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`,
                         areaSqFt: areaResult.sqFt,
-                        areaShotok: areaResult.shotok
+                        areaShotok: areaResult.shotok,
+                        color: currentColor, // Save current color
+                        lineStyle: currentLineStyle // Save current line style
                     };
                     measurements.push(rect);
                     outputDisplay.innerText = 'Rectangle drawn. Area: ' + rect.value;
-                } else if (mode === 'freehand') {
-                    if (currentDrawing.points.length > 1) { // Only save if more than one point
-                        let totalLength = 0;
-                        for(let i = 0; i < currentDrawing.points.length - 1; i++) {
-                            const p1 = currentDrawing.points[i];
-                            const p2 = currentDrawing.points[i+1];
-                            totalLength += Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                        }
-                        const lengthInFeet = totalLength / scaleFactorPixelsPerUnit;
-                        const lengthInLinks = lengthInFeet / 0.66;
-
-                        measurements.push({
-                            id: Date.now() + '-freehand',
-                            type: 'freehand',
-                            points: currentDrawing.points,
-                            value: `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`
-                        });
-                        outputDisplay.innerText = 'Freehand drawing added. Total Length: ' + measurements[measurements.length - 1].value;
-                    } else {
-                        outputDisplay.innerText = 'Freehand drawing cancelled (too short).';
-                    }
                 }
                 currentDrawing = null; // Clear current drawing for drag-to-draw tools
                 renderMeasurementsList(); // Update list after new measurement
@@ -1740,7 +1688,9 @@
                     closed: true, // Mark as closed
                     value: `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`,
                     areaSqFt: areaResult.sqFt,
-                    areaShotok: areaResult.shotok
+                    areaShotok: areaResult.shotok,
+                    color: currentColor, // Save current color
+                    lineStyle: currentLineStyle // Save current line style
                 };
                 measurements.push(polygon);
                 outputDisplay.innerText = 'Polygon drawn. Area: ' + polygon.value;
@@ -1879,9 +1829,8 @@
             currentPdfPage = null; // Clear previous PDF page reference
             
             // Set initial scale parameters from UI inputs
-            PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
-            FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
-            scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
+            // PIXELS_PER_INCH_CURRENT is now fixed
+            updateScaleValues(currentScaleSetting); // Set default scale and calculate initial scaleFactorPixelsPerUnit
 
 
             if (file.type.startsWith('image/')) {
@@ -1895,7 +1844,7 @@
                             y: (mainCanvas.clientHeight - img.height * zoom) / 2,
                         };
                         zoom = 1; // Reset zoom
-                        outputDisplay.innerText = `Image loaded. Scale: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet. Start measuring now.`;
+                        outputDisplay.innerText = `Image loaded. Scale: ${currentScaleSetting}. Start measuring now.`;
                         redraw(); // Force a redraw
                         saveState(); // Save initial state to history
                     };
@@ -1913,7 +1862,7 @@
                         return pdf.getPage(1);
                     }).then(function(page) {
                         currentPdfPage = page; // Store the page object for direct rendering
-                        const desiredPpi = parseFloat(dpiInput.value) || 300;
+                        const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
                         const scale = desiredPpi / 72; // PDF native is 72 PPI
                         const viewport = page.getViewport({ scale: scale });
 
@@ -1932,7 +1881,7 @@
                                     y: (mainCanvas.clientHeight - img.height * zoom) / 2,
                                 };
                                 zoom = 1;
-                                outputDisplay.innerText = `PDF page 1 loaded as image. Scale: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet. Start measuring now.`;
+                                outputDisplay.innerText = `PDF page 1 loaded as image. Scale: ${currentScaleSetting}. Start measuring now.`;
                                 redraw();
                                 saveState(); // Save initial state to history
                             };
@@ -1980,109 +1929,63 @@
             }
         });
 
-
-        // Event listeners for DPI and Feet/Inch input changes
-        dpiInput.addEventListener('input', () => {
-            PIXELS_PER_INCH_CURRENT = parseFloat(dpiInput.value);
-            if (FEET_PER_INCH_CURRENT > 0) {
-                scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
-                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet.`;
-                // Recalculate all measurements based on new scale
-                measurements.forEach(m => {
-                    if (m.type === 'line') {
-                        m.value = calculateLineLength(m.points[0], m.points[1]);
-                    } else if (m.type === 'rectangle') {
-                        const areaResult = calculateRectangleArea(m.points); // Pass all 4 points
-                        m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaResult.sqFt;
-                        m.areaShotok = areaResult.shotok;
-                    } else if (m.type === 'polygon') {
-                        const areaResult = calculatePolygonArea(m.points);
-                        m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaResult.sqFt;
-                        m.areaShotok = areaResult.shotok;
-                    } else if (m.type === 'angle') {
-                        const [p1, p2, p3] = m.points;
-                        m.value = calculateAngle(p1, p2, p3);
-                    } else if (m.type === 'circle') {
-                        const [center, radiusPoint] = m.points;
-                        const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
-                        const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
-                        const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
-                        const areaShotok = areaSqFt / 435.6;
-                        m.radius = radius / scaleFactorPixelsPerUnit;
-                        m.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaSqFt; // Store numeric value
-                        m.areaShotok = areaShotok; // Store numeric value
-                    } else if (m.type === 'freehand') {
-                        let totalLength = 0;
-                        for(let i = 0; i < m.points.length - 1; i++) {
-                            const p1 = m.points[i];
-                            const p2 = m.points[i+1];
-                            totalLength += Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                        }
-                        const lengthInFeet = totalLength / scaleFactorPixelsPerUnit;
-                        const lengthInLinks = lengthInFeet / 0.66;
-                        m.value = `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`;
-                    }
-                });
-                renderMeasurementsList();
-            } else {
-                outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
+        /**
+         * Updates the current scale values based on the selected scale setting.
+         * @param {string} scaleSetting - The selected scale string (e.g., '16inch=1mile').
+         */
+        function updateScaleValues(scaleSetting) {
+            currentScaleSetting = scaleSetting;
+            switch (scaleSetting) {
+                case '16inch=1mile':
+                    FEET_PER_INCH_CURRENT = 330;
+                    break;
+                case '32inch=1mile':
+                    FEET_PER_INCH_CURRENT = 165;
+                    break;
+                case '64inch=1mile':
+                    FEET_PER_INCH_CURRENT = 82.5;
+                    break;
+                default:
+                    FEET_PER_INCH_CURRENT = 330; // Fallback
             }
-            redraw(); // Redraw canvas to reflect potential scale changes
-        });
+            scaleFactorPixelsPerUnit = PIXELS_PER_INCH_FIXED / FEET_PER_INCH_CURRENT;
+            scaleButton.textContent = `Scale: ${scaleSetting}`;
+            outputDisplay.innerText = `Scale updated to: ${scaleSetting}.`;
 
-        feetPerInchInput.addEventListener('input', () => {
-            FEET_PER_INCH_CURRENT = parseFloat(feetPerInchInput.value);
-            if (FEET_PER_INCH_CURRENT > 0) {
-                scaleFactorPixelsPerUnit = PIXELS_PER_INCH_CURRENT / FEET_PER_INCH_CURRENT;
-                outputDisplay.innerText = `Scale updated: ${PIXELS_PER_INCH_CURRENT} DPI & 1 inch = ${FEET_PER_INCH_CURRENT} feet.`;
-                // Recalculate all measurements based on new scale
-                measurements.forEach(m => {
-                    if (m.type === 'line') {
-                        m.value = calculateLineLength(m.points[0], m.points[1]);
-                    } else if (m.type === 'rectangle') {
-                        const areaResult = calculateRectangleArea(m.points); // Pass all 4 points
-                        m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaResult.sqFt;
-                        m.areaShotok = areaResult.shotok;
-                    } else if (m.type === 'polygon') {
-                        const areaResult = calculatePolygonArea(m.points);
-                        m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaResult.sqFt;
-                        m.areaShotok = areaResult.shotok;
-                    } else if (m.type === 'angle') {
-                        const [p1, p2, p3] = m.points;
-                        m.value = calculateAngle(p1, p2, p3);
-                    } else if (m.type === 'circle') {
-                        const [center, radiusPoint] = m.points;
-                        const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
-                        const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
-                        const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
-                        const areaShotok = areaSqFt / 435.6;
-                        m.radius = radius / scaleFactorPixelsPerUnit;
-                        m.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
-                        m.areaSqFt = areaSqFt; // Store numeric value
-                        m.areaShotok = areaShotok; // Store numeric value
-                    } else if (m.type === 'freehand') {
-                        let totalLength = 0;
-                        for(let i = 0; i < m.points.length - 1; i++) {
-                            const p1 = m.points[i];
-                            const p2 = m.points[i+1];
-                            totalLength += Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                        }
-                        const lengthInFeet = totalLength / scaleFactorPixelsPerUnit;
-                        const lengthInLinks = lengthInFeet / 0.66;
-                        m.value = `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`;
-                    }
-                });
-                renderMeasurementsList();
-            } else {
-                outputDisplay.innerText = `Error: Feet/Inch cannot be zero.`;
-            }
-            redraw(); // Redraw canvas to reflect potential scale changes
-        });
+            // Recalculate all existing measurements based on new scale
+            measurements.forEach(m => {
+                if (m.type === 'line' || m.type === 'calibration') {
+                    m.value = calculateLineLength(m.points[0], m.points[1]);
+                } else if (m.type === 'rectangle') {
+                    const areaResult = calculateRectangleArea(m.points);
+                    m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
+                    m.areaSqFt = areaResult.sqFt;
+                    m.areaShotok = areaResult.shotok;
+                } else if (m.type === 'polygon') {
+                    const areaResult = calculatePolygonArea(m.points);
+                    m.value = `${areaResult.sqFt.toFixed(2)} sq ft / ${areaResult.shotok.toFixed(4)} shotok`;
+                    m.areaSqFt = areaResult.sqFt;
+                    m.areaShotok = areaResult.shotok;
+                } else if (m.type === 'angle') {
+                    // Angle value doesn't change with scale, but arm lengths might be displayed
+                    // No direct recalculation of m.value for angle itself, but if arm lengths are part of it, they would update.
+                } else if (m.type === 'circle') {
+                    const [center, radiusPoint] = m.points;
+                    const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y);
+                    const circumference = 2 * Math.PI * radius / scaleFactorPixelsPerUnit;
+                    const areaSqFt = Math.PI * (radius / scaleFactorPixelsPerUnit) * (radius / scaleFactorPixelsPerUnit);
+                    const areaShotok = areaSqFt / 435.6;
+                    m.radius = radius / scaleFactorPixelsPerUnit;
+                    m.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
+                    m.areaSqFt = areaSqFt;
+                    m.areaShotok = areaShotok;
+                }
+                // Text measurements don't change with scale
+            });
+            renderMeasurementsList();
+            redraw();
+        }
+
 
         // Event listener for "Calibrate Scale" button
         calibrateScaleBtn.addEventListener('click', () => {
@@ -2122,18 +2025,21 @@
                 if (!isNaN(realWorldLength) && realWorldLength > 0) {
                     // Recalculate scale factor
                     scaleFactorPixelsPerUnit = pixelDistance / realWorldLength;
-                    // Update DPI input to reflect the new calibration based on the existing Feet/Inch
-                    PIXELS_PER_INCH_CURRENT = scaleFactorPixelsPerUnit * FEET_PER_INCH_CURRENT;
-                    dpiInput.value = PIXELS_PER_INCH_CURRENT.toFixed(2);
-
+                    // Update FEET_PER_INCH_CURRENT based on the new calibration and fixed DPI
+                    FEET_PER_INCH_CURRENT = PIXELS_PER_INCH_FIXED / scaleFactorPixelsPerUnit;
+                    // Update the scale button text to reflect custom calibration
+                    scaleButton.textContent = `Scale: Custom (${FEET_PER_INCH_CURRENT.toFixed(2)} ft/inch)`;
+                    outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${PIXELS_PER_INCH_FIXED}).`;
+                    
                     // Add calibration as a measurement
                     measurements.push({
                         id: Date.now() + '-calibration',
                         type: 'calibration',
                         points: currentDrawing.points,
-                        value: `${realWorldLength.toFixed(2)} ft (1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} ft, DPI = ${PIXELS_PER_INCH_CURRENT.toFixed(2)}).`
+                        value: `${realWorldLength.toFixed(2)} ft (1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} ft, DPI = ${PIXELS_PER_INCH_FIXED}).`,
+                        color: currentColor, // Save current color
+                        lineStyle: currentLineStyle // Save current line style
                     });
-                    outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${PIXELS_PER_INCH_CURRENT.toFixed(2)}).`;
                     saveState(); // Save state after calibration
                     
                 } else {
@@ -2198,17 +2104,19 @@
             }
 
             // Prepare CSV header and content
-            let csvContent = "Type,Value,Text,Count,Radius(ft),AreaSqFt,AreaShotok,Points\n"; // Added AreaSqFt, AreaShotok
+            let csvContent = "Type,Value,Text,Count,Radius(ft),AreaSqFt,AreaShotok,Points,Color,LineStyle\n";
             measurements.forEach(m => {
                 const type = m.type;
                 const value = m.value || '';
-                const text = m.text ? `"${m.text.replace(/"/g, '""')}"` : ''; // Handle quotes in text
-                const count = m.count !== undefined ? m.count : '';
+                const text = m.text ? `"${m.text.replace(/"/g, '""')}"` : '';
+                const count = ''; // Removed count, so it's always empty
                 const radius = m.radius !== undefined ? m.radius.toFixed(2) : '';
-                const areaSqFt = m.areaSqFt !== undefined ? m.areaSqFt.toFixed(2) : ''; // New
-                const areaShotok = m.areaShotok !== undefined ? m.areaShotok.toFixed(4) : ''; // New
+                const areaSqFt = m.areaSqFt !== undefined ? m.areaSqFt.toFixed(2) : '';
+                const areaShotok = m.areaShotok !== undefined ? m.areaShotok.toFixed(4) : '';
                 const points = m.points.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(';');
-                csvContent += `${type},"${value}",${text},"${count}","${radius}","${areaSqFt}","${areaShotok}","${points}"\n`;
+                const color = m.color || ''; // Export color
+                const lineStyle = m.lineStyle || ''; // Export line style
+                csvContent += `${type},"${value}",${text},"${count}","${radius}","${areaSqFt}","${areaShotok}","${points}","${color}","${lineStyle}"\n`;
             });
 
             // Create a Blob and download as CSV file
@@ -2290,26 +2198,32 @@
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
-        addCounterBtn.addEventListener('click', () => {
-            mode = 'counter';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
-            outputDisplay.innerText = 'Click on canvas to add a counter.';
-            updateModeButtons();
-            canvasContainer.classList.add('drawing-mode');
-        });
-        freehandBtn.addEventListener('click', () => {
-            mode = 'freehand';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
-            outputDisplay.innerText = 'Click and drag to draw freehand.';
-            updateModeButtons();
-            canvasContainer.classList.add('drawing-mode');
+
+        // Scale Button and Dropdown Logic
+        scaleButton.addEventListener('click', () => {
+            scaleDropdown.classList.toggle('hidden');
         });
 
-        // Event listeners for style options (Line Width and Font Size)
+        scaleDropdown.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                const selectedScale = e.target.dataset.scale;
+                updateScaleValues(selectedScale);
+                scaleDropdown.classList.add('hidden'); // Hide dropdown after selection
+            }
+        });
+
+
+        // Event listeners for style options (Line Width, Font Size, Color, Line Style)
         lineWidthInput.addEventListener('input', redraw);
         fontSizeInput.addEventListener('input', redraw);
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+            redraw();
+        });
+        lineStyleSelect.addEventListener('change', (e) => {
+            currentLineStyle = e.target.value;
+            redraw();
+        });
 
 
         // Event listener for "Undo" button
@@ -2351,6 +2265,9 @@
             renderMeasurementsList(); // Clear the measurements list in the sidebar
             canvasContainer.classList.remove('drawing-mode'); // Remove crosshair cursor
             confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
+            
+            // Reset scale to default
+            updateScaleValues('16inch=1mile');
         });
 
         // Event listener for deleting and editing individual measurements from the sidebar list
@@ -2389,14 +2306,15 @@
         function updateModeButtons() {
             const allDrawButtons = [
                 drawLineBtn, drawRectangleBtn, drawPolygonBtn,
-                drawAngleBtn, drawCircleBtn, addTextBtn, addCounterBtn, freehandBtn,
+                drawAngleBtn, drawCircleBtn, addTextBtn,
                 calibrateScaleBtn
             ];
             allDrawButtons.forEach(btn => {
                 // Remove active (600) classes and re-add default (500) classes
                 btn.classList.remove(
                     'bg-green-600', 'bg-purple-600', 'bg-indigo-600',
-                    'bg-pink-600', 'bg-orange-600', 'bg-teal-600', 'bg-cyan-600', 'bg-gray-600', 'bg-blue-600'
+                    'bg-pink-600', 'bg-orange-600', 'bg-teal-600', 'bg-cyan-600', 'bg-gray-600', 'bg-blue-600',
+                    'bg-red-600', 'bg-yellow-600'
                 );
                 // Ensure default 500 class is present for non-active buttons
                 if (btn.id.includes('Line')) btn.classList.add('bg-green-500');
@@ -2405,8 +2323,6 @@
                 else if (btn.id.includes('Angle')) btn.classList.add('bg-pink-500');
                 else if (btn.id.includes('Circle')) btn.classList.add('bg-orange-500');
                 else if (btn.id.includes('Text')) btn.classList.add('bg-teal-500');
-                else if (btn.id.includes('Counter')) btn.classList.add('bg-cyan-500');
-                else if (btn.id.includes('Freehand')) btn.classList.add('bg-gray-500');
                 else if (btn.id.includes('Calibrate')) btn.classList.add('bg-blue-500');
                 else btn.classList.add('bg-gray-500'); // Fallback
             });
@@ -2420,30 +2336,24 @@
                 'polygon': 'bg-indigo-600',
                 'angle': 'bg-pink-600',
                 'circle': 'bg-orange-600',
-                'text': 'bg-teal-600',
-                'counter': 'bg-cyan-600',
-                'freehand': 'bg-gray-600'
+                'text': 'bg-teal-600'
             };
             if (mode !== 'pan') {
                 let activeButton;
                 if (mode === 'text') {
                     activeButton = addTextBtn;
-                } else if (mode === 'counter') {
-                    activeButton = addCounterBtn;
                 } else if (mode === 'calibrate') {
                     activeButton = calibrateScaleBtn;
-                } else if (mode === 'line') { // Specific handling for Line button
+                } else if (mode === 'line') {
                     activeButton = drawLineBtn;
-                } else if (mode === 'rectangle') { // Specific handling for Rectangle button
+                } else if (mode === 'rectangle') {
                     activeButton = drawRectangleBtn;
-                } else if (mode === 'polygon') { // Specific handling for Polygon button
+                } else if (mode === 'polygon') {
                     activeButton = drawPolygonBtn;
-                } else if (mode === 'angle') { // Specific handling for Angle button
+                } else if (mode === 'angle') {
                     activeButton = drawAngleBtn;
-                } else if (mode === 'circle') { // Specific handling for Circle button
+                } else if (mode === 'circle') {
                     activeButton = drawCircleBtn;
-                } else if (mode === 'freehand') { // Specific handling for Freehand button
-                    activeButton = freehandBtn;
                 }
                 
                 if (activeButton) {
@@ -2493,7 +2403,7 @@
                 if (currentPdfPage) {
                     // Recalculate rendering scale based on new canvas dimensions
                     const viewport = currentPdfPage.getViewport({ scale: 1 });
-                    const desiredPpi = parseFloat(dpiInput.value) || 300;
+                    const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
 
@@ -2526,7 +2436,7 @@
                     // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
                     const viewport = currentPdfPage.getViewport({ scale: 1 });
-                    const desiredPpi = parseFloat(dpiInput.value) || 300;
+                    const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
 
@@ -2552,6 +2462,7 @@
         // Initial rendering of the measurement list when the page loads
         renderMeasurementsList();
         updateUndoRedoButtons(); // Initialize button states
+        updateScaleValues(currentScaleSetting); // Set initial default scale
 
         // Start the animation loop. This ensures continuous redrawing for dynamic elements.
         requestAnimationFrame(redraw);
