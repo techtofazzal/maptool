@@ -574,8 +574,39 @@
         }
 
         /**
-         * Helper: Gets canvas coordinates, potentially snapping to existing nearby points or lines.
-         * This creates a "magnetic" effect when drawing near existing measurement points or lines.
+         * Calculates the intersection point of two line segments.
+         * Returns null if segments are parallel or do not intersect within their bounds.
+         * @param {{p1: {x: number, y: number}, p2: {x: number, y: number}}} segment1
+         * @param {{p1: {x: number, y: number}, p2: {x: number, y: number}}} segment2
+         * @returns {{x: number, y: number}|null} Intersection point or null.
+         */
+        function getSegmentIntersection(segment1, segment2) {
+            const A = segment1.p1;
+            const B = segment1.p2;
+            const C = segment2.p1;
+            const D = segment2.p2;
+
+            const denom = (A.x - B.x) * (C.y - D.y) - (A.y - B.y) * (C.x - D.x);
+            if (denom === 0) {
+                return null; // Parallel or collinear
+            }
+
+            const t = ((A.x - C.x) * (C.y - D.y) - (A.y - C.y) * (C.x - D.x)) / denom;
+            const u = -((A.x - B.x) * (A.y - C.y) - (A.y - B.y) * (A.x - C.x)) / denom;
+
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                return {
+                    x: A.x + t * (B.x - A.x),
+                    y: A.y + t * (B.y - A.y)
+                };
+            }
+            return null; // No intersection within segments
+        }
+
+
+        /**
+         * Helper: Gets canvas coordinates, potentially snapping to existing nearby points, midpoints, or intersections.
+         * This creates a "magnetic" effect when drawing near existing measurement features.
          * @param {number} clientX - The clientX coordinate from a pointer event.
          * @param {number} clientY - The clientY coordinate from a pointer event.
          * @returns {{x: number, y: number}} The snapped or original canvas coordinates.
@@ -587,182 +618,105 @@
             const currentScreenX = clientX;
             const currentScreenY = clientY;
 
-            // First, check for snapping to existing points (corners, centers, etc.)
-            const allSnappablePoints = [];
-            
+            let allSnappableFeatures = []; // Stores points, midpoints, intersections
+
+            // 1. Collect all existing measurement points
             measurements.forEach(m => {
                 if (m.type !== 'text') { // Text has only one point, no need for complex snapping
-                    m.points.forEach(p => allSnappablePoints.push(p));
-                }
-                // Add midpoints of segments for snapping (Lines, Rectangles, Polygons, Angles)
-                if (m.type === 'line' || m.type === 'calibration') {
-                    const midX = (m.points[0].x + m.points[1].x) / 2;
-                    const midY = (m.points[0].y + m.points[1].y) / 2;
-                    allSnappablePoints.push({ x: midX, y: midY });
-                } else if (m.type === 'rectangle') {
-                    const [c1, c2, c3, c4] = m.points;
-                    allSnappablePoints.push(c1, c2, c3, c4);
-                    // Also add midpoints of the sides
-                    allSnappablePoints.push(
-                        { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 },
-                        { x: (c2.x + c3.x) / 2, y: (c2.y + c3.y) / 2 },
-                        { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 },
-                        { x: (c4.x + c1.x) / 2, y: (c4.y + c1.y) / 2 }
-                    );
-                } else if (m.type === 'polygon' && m.closed) { // Snap to midpoints of polygon segments once closed
-                    for(let i=0; i<m.points.length; i++) {
-                        const pA = m.points[i];
-                        const pB = m.points[(i+1) % m.points.length];
-                        const midX = (pA.x + pB.x) / 2;
-                        const midY = (pA.y + pB.y) / 2;
-                        allSnappablePoints.push({x: midX, y: midY});
-                    }
-                } else if (m.type === 'angle' && m.points.length === 3) {
-                    const [p1, p2, p3] = m.points;
-                    const mid1X = (p1.x + p2.x) / 2;
-                    const mid1Y = (p1.y + p2.y) / 2;
-                    const mid2X = (p2.x + p3.x) / 2;
-                    const mid2Y = (p2.y + p3.y) / 2;
-                    allSnappablePoints.push({x: mid1X, y: mid1Y}, {x: mid2X, y: mid2Y});
-                } else if (m.type === 'circle' && m.points.length === 2) {
-                    allSnappablePoints.push(m.points[0]); // center
-                    const radius = Math.hypot(m.points[1].x - m.points[0].x, m.points[1].y - m.points[0].y);
-                    // Add cardinal points on circumference for better snapping
-                    allSnappablePoints.push(
-                        { x: m.points[0].x + radius, y: m.points[0].y }, // Right
-                        { x: m.points[0].x - radius, y: m.points[0].y }, // Left
-                        { x: m.points[0].x, y: m.points[0].y + radius }, // Bottom
-                        { x: m.points[0].x, y: m.points[0].y - radius }  // Top
-                    );
+                    m.points.forEach(p => allSnappableFeatures.push({ type: 'point', x: p.x, y: p.y }));
                 }
             });
 
-            // Add points from the current drawing (e.g., polygon points, calibration points)
-            if (currentDrawing && currentDrawing.points) {
-                // Ensure current drawing points themselves can be snapped to
-                currentDrawing.points.forEach(p => allSnappablePoints.push(p));
-            }
-
-
-            // Iterate through all snappable points
-            for (const p of allSnappablePoints) {
-                const screenP = getScreenCoords(p.x, p.y);
-                // Calculate distance in CSS pixels between current pointer and existing point
-                const dist = Math.hypot(currentScreenX - (mainCanvas.getBoundingClientRect().left + screenP.x), currentScreenY - (mainCanvas.getBoundingClientRect().top + screenP.y));
-                
-                // If within SNAP_RADIUS, snap to this point
-                if (dist < SNAP_RADIUS) {
-                    x = p.x;
-                    y = p.y;
-                    snappedToPoint = p; // Store the snapped point for visual feedback
-                    return { x, y }; // Return immediately if snapped to a point (point snaps take precedence)
+            // 2. Collect midpoints of all segments
+            measurements.forEach(m => {
+                let segments = [];
+                if (m.type === 'line' || m.type === 'calibration') {
+                    segments.push({ p1: m.points[0], p2: m.points[1] });
+                } else if (m.type === 'rectangle') {
+                    const [c1, c2, c3, c4] = m.points;
+                    segments.push({ p1: c1, p2: c2 }, { p1: c2, p2: c3 }, { p1: c3, p2: c4 }, { p1: c4, p2: c1 });
+                } else if (m.type === 'polygon' && m.closed) {
+                    for (let i = 0; i < m.points.length; i++) {
+                        segments.push({ p1: m.points[i], p2: m.points[(i + 1) % m.points.length] });
+                    }
+                } else if (m.type === 'angle' && m.points.length === 3) {
+                    const [p1, p2, p3] = m.points;
+                    segments.push({ p1: p1, p2: p2 }, { p1: p2, p2: p3 });
+                } else if (m.type === 'circle' && m.points.length === 2) {
+                    // For circles, we can add the center and cardinal points on the circumference as snappable points
+                    const center = m.points[0];
+                    const radius = Math.hypot(m.points[1].x - center.x, m.points[1].y - center.y);
+                    allSnappableFeatures.push(
+                        { type: 'point', x: center.x, y: center.y },
+                        { type: 'point', x: center.x + radius, y: center.y },
+                        { type: 'point', x: center.x - radius, y: center.y },
+                        { type: 'point', x: center.x, y: center.y + radius },
+                        { type: 'point', x: center.x, y: center.y - radius }
+                    );
                 }
-            }
 
-            // --- Check for snapping to line segments (only if not snapped to a point) ---
-            const allSnappableSegments = [];
+                segments.forEach(seg => {
+                    const midX = (seg.p1.x + seg.p2.x) / 2;
+                    const midY = (seg.p1.y + seg.p2.y) / 2;
+                    allSnappableFeatures.push({ type: 'midpoint', x: midX, y: midY });
+                });
+            });
 
+            // 3. Collect intersection points of all segments
+            const allSegments = [];
             measurements.forEach(m => {
                 if (m.type === 'line' || m.type === 'calibration') {
-                    allSnappableSegments.push([m.points[0], m.points[1]]);
+                    allSegments.push({ p1: m.points[0], p2: m.points[1] });
                 } else if (m.type === 'rectangle') {
                     const [c1, c2, c3, c4] = m.points;
-                    allSnappableSegments.push([c1, c2], [c2, c3], [c3, c4], [c4, c1]);
+                    allSegments.push({ p1: c1, p2: c2 }, { p1: c2, p2: c3 }, { p1: c3, p2: c4 }, { p1: c4, p2: c1 });
                 } else if (m.type === 'polygon' && m.closed) {
-                    for(let i=0; i<m.points.length; i++) {
-                        allSnappableSegments.push([m.points[i], m.points[(i+1) % m.points.length]]);
+                    for (let i = 0; i < m.points.length; i++) {
+                        allSegments.push({ p1: m.points[i], p2: m.points[(i + 1) % m.points.length] });
                     }
                 } else if (m.type === 'angle' && m.points.length === 3) {
                     const [p1, p2, p3] = m.points;
-                    allSnappableSegments.push([p1, p2], [p2, p3]);
+                    allSegments.push({ p1: p1, p2: p2 }, { p1: p2, p2: p3 });
                 }
             });
 
-            // Add segments from the current drawing if applicable (e.g., first segment of a polygon or calibration)
-            if (currentDrawing) {
-                if (currentDrawing.type === 'polygon' && currentDrawing.points.length >= 1) {
-                    const lastPoint = currentDrawing.points[currentDrawing.points.length - 1];
-                    const mouseCanvasCoords_unsnapped = getCanvasCoords(clientX, clientY); // Use unsnapped for this temporary line segment
-                    allSnappableSegments.push([lastPoint, mouseCanvasCoords_unsnapped]);
-                }
-                if (currentDrawing.type === 'calibrate' && currentDrawing.points.length === 1) {
-                    const p1 = currentDrawing.points[0];
-                    const mouseCanvasCoords_unsnapped = getCanvasCoords(clientX, clientY); // Use unsnapped for this temporary line segment
-                    allSnappableSegments.push([p1, mouseCanvasCoords_unsnapped]);
+            for (let i = 0; i < allSegments.length; i++) {
+                for (let j = i + 1; j < allSegments.length; j++) {
+                    const intersection = getSegmentIntersection(allSegments[i], allSegments[j]);
+                    if (intersection) {
+                        allSnappableFeatures.push({ type: 'intersection', x: intersection.x, y: intersection.y });
+                    }
                 }
             }
 
 
-            let closestSnapOnLine = null;
-            let minDistanceToLine = Infinity;
+            // Prioritize snapping: existing points > midpoints > intersections
+            // Sort by type to ensure priority, or iterate in order
+            const prioritizedSnaps = ['point', 'midpoint', 'intersection'];
+            let closestSnap = null;
+            let minDistance = Infinity;
 
-            for (const segment of allSnappableSegments) {
-                const p1_canvas = segment[0];
-                const p2_canvas = segment[1];
-
-                // Convert segment points to screen coordinates for distance calculation
-                const p1_screen = getScreenCoords(p1_canvas.x, p1_canvas.y);
-                const p2_screen = getScreenCoords(p2_canvas.x, p2_canvas.y);
-
-                // Normalize coordinates relative to canvas top-left for easier calculation
-                const sx1 = mainCanvas.getBoundingClientRect().left + p1_screen.x;
-                const sy1 = mainCanvas.getBoundingClientRect().top + p1_screen.y;
-                const sx2 = mainCanvas.getBoundingClientRect().left + p2_screen.x;
-                const sy2 = mainCanvas.getBoundingClientRect().top + p2_screen.y;
-
-                // Current mouse position in screen coordinates
-                const currentPx = currentScreenX;
-                const currentPy = currentScreenY;
-
-                // Calculate vector v from p1 to p2
-                const vx = sx2 - sx1;
-                const vy = sy2 - sy1;
-
-                // Calculate vector w from p1 to currentPx, currentPy
-                const wx = currentPx - sx1;
-                const wy = currentPy - sy1;
-
-                // Calculate dot products
-                const c1 = wx * vx + wy * vy; // dot(w, v)
-                const c2 = vx * vx + vy * vy; // dot(v, v)
-
-                let ratio;
-                if (c2 === 0) { // Segment is a point
-                    ratio = 0;
-                } else {
-                    ratio = c1 / c2;
-                }
-
-                let closestX, closestY;
-
-                if (ratio < 0) {
-                    closestX = sx1;
-                    closestY = sy1;
-                } else if (ratio > 1) {
-                    closestX = sx2;
-                    closestY = sy2;
-                } else {
-                    closestX = sx1 + ratio * vx;
-                    closestY = sy1 + ratio * vy;
-                }
-
-                const distanceToSegment = Math.hypot(currentPx - closestX, currentPy - closestY);
-
-                if (distanceToSegment < SNAP_RADIUS && distanceToSegment < minDistanceToLine) {
-                    minDistanceToLine = distanceToSegment;
-                    // Convert snapped screen coordinates back to canvas coordinates
-                    const snappedCanvasX = (closestX - mainCanvas.getBoundingClientRect().left - pan.x) / zoom;
-                    const snappedCanvasY = (closestY - mainCanvas.getBoundingClientRect().top - pan.y) / zoom;
-                    closestSnapOnLine = { x: snappedCanvasX, y: snappedCanvasY };
+            for (const feature of allSnappableFeatures) {
+                const screenP = getScreenCoords(feature.x, feature.y);
+                const dist = Math.hypot(currentScreenX - (mainCanvas.getBoundingClientRect().left + screenP.x), currentScreenY - (mainCanvas.getBoundingClientRect().top + screenP.y));
+                
+                if (dist < SNAP_RADIUS && dist < minDistance) {
+                    // Check priority: if current feature has higher priority or same priority but closer
+                    if (!closestSnap || prioritizedSnaps.indexOf(feature.type) < prioritizedSnaps.indexOf(closestSnap.type) ||
+                        (prioritizedSnaps.indexOf(feature.type) === prioritizedSnaps.indexOf(closestSnap.type) && dist < minDistance)) {
+                        minDistance = dist;
+                        closestSnap = feature;
+                    }
                 }
             }
 
-            if (closestSnapOnLine) {
-                snappedToPoint = closestSnapOnLine; // Store the snapped point for visual feedback
-                return closestSnapOnLine;
+            if (closestSnap) {
+                x = closestSnap.x;
+                y = closestSnap.y;
+                snappedToPoint = closestSnap; // Store the snapped point for visual feedback
+                return { x, y };
             }
 
-            // If no snap to point or line, return the original canvas coordinates
             return { x, y };
         }
 
@@ -778,7 +732,8 @@
         function drawPoint(context, x, y, currentZoom) {
             context.beginPath();
             // Point radius depends on lineWidthInput.value for visual consistency.
-            const pointRadius = parseFloat(lineWidthInput.value) * 1.5;
+            // Ensure a minimum radius of 0.5 pixels for visibility
+            const pointRadius = Math.max(0.5, parseFloat(lineWidthInput.value) * 1.5);
             context.arc(x, y, pointRadius, 0, Math.PI * 2);
             context.fillStyle = 'blue'; // Always draw points in blue
             context.fill();
@@ -1024,7 +979,9 @@
                             const centroidX = sumX / m.points.length;
                             const centroidY = sumY / m.points.length;
                             const textOffset = currentFontSize / zoom / 2 + 2;
+                            // Display square feet on one line
                             ctx.fillText(`${m.areaSqFt.toFixed(2)} sq ft`, centroidX, centroidY - textOffset);
+                            // Display shotok on the next line
                             ctx.fillText(`${m.areaShotok.toFixed(4)} shotok`, centroidX, centroidY + textOffset);
                         }
                     }
@@ -1217,12 +1174,41 @@
                 magnifyCtx.stroke();
             }
 
+            // Draw visual feedback for snapping (small green dot AND crosshair at snapped point)
+            if (snappedToPoint) {
+                ctx.save();
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Reset transform for drawing directly on screen pixels
+                ctx.fillStyle = 'lime'; // Bright green color for snapped point
+                ctx.strokeStyle = 'lime'; // Green for crosshair
+                ctx.lineWidth = 1; // Thin crosshair line
+
+                const screenSnappedX = snappedToPoint.x * zoom + pan.x;
+                const screenSnappedY = snappedToPoint.y * zoom + pan.y;
+
+                // Draw the green circle
+                ctx.beginPath();
+                ctx.arc(screenSnappedX, screenSnappedY, SNAP_RADIUS * 2, 0, Math.PI * 2); // Larger dot for visibility
+                ctx.fill();
+
+                // Draw the green crosshair (larger size)
+                const crosshairSize = 100; // Increased size for the crosshair arms
+                ctx.beginPath();
+                ctx.moveTo(screenSnappedX - crosshairSize, screenSnappedY);
+                ctx.lineTo(screenSnappedX + crosshairSize, screenSnappedY);
+                ctx.moveTo(screenSnappedX, screenSnappedY - crosshairSize);
+                ctx.lineTo(screenSnappedX, screenSnappedY + crosshairSize);
+                ctx.stroke();
+
+                ctx.restore(); // Restore context to previous state
+            }
+
             requestAnimationFrame(redraw); // Request the next animation frame
         }
 
         /**
          * Renders the list of current measurements in the sidebar.
          * Clears the existing list and re-populates it with updated measurement data.
+         * @param {Array<Object>} measurements - The array of measurement objects to render.
          */
         function renderMeasurementsList() {
             measurementsListDiv.innerHTML = ''; // Clear existing list items
@@ -1243,7 +1229,7 @@
                 } else if (m.type === 'rectangle') {
                     displayText = `Rectangle: ${m.value}`;
                 } else if (m.type === 'polygon') {
-                    displayText = `Polygon: ${m.value}`;
+                    displayText = `Polygon: ${m.areaSqFt.toFixed(2)} sq ft / ${m.areaShotok.toFixed(4)} shotok`;
                 } else if (m.type === 'angle') {
                     displayText = `Angle: ${m.value}`;
                 } else if (m.type === 'circle') {
@@ -1514,7 +1500,7 @@
                 if (selectedPoint.measurementIndex !== -1) { // Editing an existing measurement
                     const meas = measurements[selectedPoint.measurementIndex];
 
-                    if (selectedPoint.type === 'line' || selectedPoint.type === 'calibration') {
+                    if (selectedPoint.type === 'line' || selectedPoint.type === 'calibrate') {
                         meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
                         if (selectedPoint.type === 'line') {
                             meas.value = calculateLineLength(meas.points[0], meas.points[1]);
@@ -1863,7 +1849,7 @@
                     }).then(function(page) {
                         currentPdfPage = page; // Store the page object for direct rendering
                         const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
-                        const scale = desiredPpi / 72; // PDF native is 72 PPI
+                        const scale = desiredPpi / 72;
                         const viewport = page.getViewport({ scale: scale });
 
                         const tempCanvas = document.createElement('canvas');
@@ -2200,7 +2186,8 @@
         });
 
         // Scale Button and Dropdown Logic
-        scaleButton.addEventListener('click', () => {
+        scaleButton.addEventListener('click', (event) => {
+            event.stopPropagation(); // Prevent click from immediately closing dropdown
             scaleDropdown.classList.toggle('hidden');
         });
 
@@ -2209,6 +2196,13 @@
                 const selectedScale = e.target.dataset.scale;
                 updateScaleValues(selectedScale);
                 scaleDropdown.classList.add('hidden'); // Hide dropdown after selection
+            }
+        });
+
+        // Close dropdown if clicked outside
+        window.addEventListener('click', (event) => {
+            if (!scaleButton.contains(event.target) && !scaleDropdown.contains(event.target)) {
+                scaleDropdown.classList.add('hidden');
             }
         });
 
@@ -2411,7 +2405,7 @@
                     const offscreenCtx = offscreenCanvas.getContext('2d');
                     offscreenCanvas.width = renderViewport.width;
                     offscreenCanvas.height = renderViewport.height;
-
+                    
                     const renderContext = {
                         canvasContext: offscreenCtx,
                         viewport: renderViewport,
