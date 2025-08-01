@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Advanced Image Measurement Tool</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Noksha Tool by Tofazzal</title> <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         body {
@@ -286,6 +285,39 @@
         .modal-content .modal-buttons .btn-secondary:hover {
             background-color: #cbd5e1; /* Gray-300 */
         }
+        /* WhatsApp Button specific styles */
+        .whatsapp-button-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000; /* Ensure it's above other content */
+        }
+        .whatsapp-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 25px;
+            background-color: #25d366;
+            color: white;
+            border: none; /* Remove border */
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);
+            cursor: pointer;
+        }
+        .whatsapp-button:hover {
+            background-color: #1da851;
+            transform: translateY(-2px);
+        }
+        .whatsapp-icon {
+            margin-right: 10px;
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
     </style>
 </head>
 <body>
@@ -335,7 +367,7 @@
         >
             Polygon
         </button>
-        
+
         <button
             id="drawAngleBtn"
             class="bg-pink-500 text-white hover:bg-pink-600 transition-colors duration-200"
@@ -364,7 +396,7 @@
             <div id="scaleDropdown" class="absolute hidden bg-white shadow-lg rounded-md mt-1 z-20">
                 <button data-scale="16inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">16 inch = 1 mile</button>
                 <button data-scale="32inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">32 inch = 1 mile</button>
-                <button data-scale="64inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">64 inch = 1 mile</button>
+                <button data-scale="48inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">48 inch = 1 mile</button> <button data-scale="64inch=1mile" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">64 inch = 1 mile</button>
             </div>
         </div>
 
@@ -445,7 +477,6 @@
         Load an image or PDF and start measuring.
     </div>
 
-    <!-- Custom Modal for Export Options -->
     <div id="exportModal" class="modal-overlay">
         <div class="modal-content">
             <h4>Export Options</h4>
@@ -455,6 +486,15 @@
                 <button id="exportPngOptionBtn" class="btn-primary">Export as PNG</button>
             </div>
         </div>
+    </div>
+
+    <div class="whatsapp-button-container">
+        <button class="whatsapp-button" id="whatsappContact">
+            <svg class="whatsapp-icon" viewBox="0 0 24 24">
+                <path d="M12.04 2C7.34 2 3.5 5.8 3.5 10.5C3.5 12.1 4 13.6 4.8 14.9L3.2 21.7L10.14 20.2C11.4 20.8 12.7 21.1 14.1 21.1C18.8 21.1 22.6 17.3 22.6 12.6C22.6 7.9 18.8 4 14.1 4C13.4 4 12.7 4.1 12.04 4.2C7.34 4.2 3.5 8 3.5 12.7C3.5 14.3 4 15.8 4.8 17.1L3.2 23.9L10.14 22.4C11.4 23 12.7 23.3 14.1 23.3C18.8 23.3 22.6 19.5 22.6 14.8C22.6 10.1 18.8 6.2 14.1 6.2C13.4 6.2 12.7 6.3 12.04 6.4L12.04 2ZM12.04 4.2C12.7 4.1 13.4 4 14.1 4C18.8 4 22.6 7.9 22.6 12.6C22.6 17.3 18.8 21.1 14.1 21.1C12.7 21.1 11.4 20.8 10.14 20.2L3.2 21.7L4.8 14.9C4 13.6 3.5 12.1 3.5 10.5C3.5 5.8 7.34 2 12.04 2Z" fill="currentColor"/>
+            </svg>
+            WhatsApp এ যোগাযোগ করুন
+        </button>
     </div>
 
     <script>
@@ -485,7 +525,7 @@
         const confirmCalibrationBtn = document.getElementById('confirmCalibrationBtn');
         const measurementsSidebar = document.getElementById('measurements-sidebar');
         const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
-        
+
         // New Scale elements
         const scaleButton = document.getElementById('scaleButton');
         const scaleDropdown = document.getElementById('scaleDropdown');
@@ -517,14 +557,14 @@
 
         let currentColor = colorPicker.value; // Initialize with default color picker value
         let currentLineStyle = lineStyleSelect.value; // Initialize with default line style value
-        
+
         // Fixed DPI for map images
-        const PIXELS_PER_INCH_FIXED = 400; 
+        const PIXELS_PER_INCH_FIXED = 400;
         let FEET_PER_INCH_CURRENT; // This will be set by scale selection
         let scaleFactorPixelsPerUnit;
 
         // Default scale setting
-        let currentScaleSetting = '16inch=1mile'; 
+        let currentScaleSetting = '16inch=1mile';
 
         // History for Undo/Redo
         let measurementHistory = [];
@@ -699,7 +739,7 @@
             for (const feature of allSnappableFeatures) {
                 const screenP = getScreenCoords(feature.x, feature.y);
                 const dist = Math.hypot(currentScreenX - (mainCanvas.getBoundingClientRect().left + screenP.x), currentScreenY - (mainCanvas.getBoundingClientRect().top + screenP.y));
-                
+
                 if (dist < SNAP_RADIUS && dist < minDistance) {
                     // Check priority: if current feature has higher priority or same priority but closer
                     if (!closestSnap || prioritizedSnaps.indexOf(feature.type) < prioritizedSnaps.indexOf(closestSnap.type) ||
@@ -921,7 +961,7 @@
                     // Draw segment measurements (length of each side)
                     const segments = [
                         { p1: c1, p2: c2 }, { p1: c2, p2: c3 },
-                        { p1: c3, p2: c4 }, { p1: c4, p2: c1 }  
+                        { p1: c3, p2: c4 }, { p1: c4, p2: c1 }
                     ];
                     segments.forEach(seg => {
                         const midX = (seg.p1.x + seg.p2.x) / 2;
@@ -977,12 +1017,12 @@
                             let sumX = 0, sumY = 0;
                             m.points.forEach(p => { sumX += p.x; sumY += p.y; });
                             const centroidX = sumX / m.points.length;
-                            const centroidY = sumY / m.points.length;
+                            const centroidY = sumY / m.points.length; // Corrected: Use centroidY here
                             const textOffset = currentFontSize / zoom / 2 + 2;
                             // Display square feet on one line
-                            ctx.fillText(`${m.areaSqFt.toFixed(2)} sq ft`, centroidX, centroidY - textOffset);
+                            ctx.fillText(`${m.areaSqFt.toFixed(2)} sq ft`, centroidX, centroidY - textOffset); // Corrected: Use centroidY
                             // Display shotok on the next line
-                            ctx.fillText(`${m.areaShotok.toFixed(4)} shotok`, centroidX, centroidY + textOffset);
+                            ctx.fillText(`${m.areaShotok.toFixed(4)} shotok`, centroidX, centroidY + textOffset); // Corrected: Use centroidY
                         }
                     }
                 } else if (m.type === 'angle') {
@@ -1000,7 +1040,7 @@
                     const angleRadius = 30 / zoom; // Size of the arc, adjusted for zoom
                     const startAngle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
                     const endAngle = Math.atan2(p3.y - p2.y, p3.x - p2.x);
-                    
+
                     ctx.beginPath();
                     ctx.arc(p2.x, p2.y, angleRadius, startAngle, endAngle);
                     ctx.stroke();
@@ -1131,7 +1171,7 @@
                     }
                 }
             }
-            
+
             ctx.restore(); // Restore the context to its original state before this redraw
 
             // Draw magnifier content if active
@@ -1154,12 +1194,12 @@
                 // This rectangle will be centered around the rawPixelX_under_cursor/Y_under_cursor.
                 const sourceX_physical = rawPixelX_under_cursor - (sourceRegionPhysicalSize / 2);
                 const sourceY_physical = rawPixelY_under_cursor - (sourceRegionPhysicalSize / 2);
-                
+
                 // Draw a magnified portion of the main canvas onto the magnifier canvas
                 magnifyCtx.drawImage(
-                    mainCanvas, 
-                    sourceX_physical, sourceY_physical, 
-                    sourceRegionPhysicalSize, sourceRegionPhysicalSize, 
+                    mainCanvas,
+                    sourceX_physical, sourceY_physical,
+                    sourceRegionPhysicalSize, sourceRegionPhysicalSize,
                     0, 0, MAGNIFIER_SIZE * dpr, MAGNIFIER_SIZE * dpr
                 );
 
@@ -1303,11 +1343,11 @@
 
             // Get canvas coordinates, potentially snapping to existing points
             const { x, y } = getSnappedCanvasCoords(e.clientX, e.clientY);
-            
+
             // Store starting point for drag calculations (screen coords for pan, canvas coords for drawing/editing)
             startPoint = { clientX: e.clientX, clientY: e.clientY, x, y };
             isDragging = true;
-            
+
             // Update last pointer position for magnifier
             lastPointerClientX = e.clientX;
             lastPointerClientY = e.clientY;
@@ -1437,7 +1477,7 @@
             // If in calibrate mode AND we have 2 points, also allow selection of the points in `currentDrawing`.
             if (mode === 'pan' || (!currentDrawing && mode !== 'calibrate') || (currentDrawing && currentDrawing.type === 'calibrate' && currentDrawing.points.length === 2)) {
                 selectedPoint = null; // Reset
-                
+
                 // Check existing measurements
                 for (const m of measurements) {
                     // Include text in point selection for dragging
@@ -1500,7 +1540,7 @@
                 if (selectedPoint.measurementIndex !== -1) { // Editing an existing measurement
                     const meas = measurements[selectedPoint.measurementIndex];
 
-                    if (selectedPoint.type === 'line' || selectedPoint.type === 'calibrate') {
+                    if (selectedPoint.type === 'line' || selectedPoint.type === 'calibration') {
                         meas.points[selectedPoint.pointIndex] = { x: currentCanvasX, y: currentCanvasY };
                         if (selectedPoint.type === 'line') {
                             meas.value = calculateLineLength(meas.points[0], meas.points[1]);
@@ -1512,7 +1552,7 @@
                         const draggedPointIndex = selectedPoint.pointIndex;
                         const originalX = meas.points[draggedPointIndex].x;
                         const originalY = meas.points[draggedPointIndex].y;
-                        
+
                         // Update the dragged point directly
                         meas.points[draggedPointIndex] = { x: currentCanvasX, y: currentCanvasY };
 
@@ -1556,8 +1596,8 @@
                             const areaShotok = areaSqFt / 435.6;
                             meas.radius = radius / scaleFactorPixelsPerUnit;
                             meas.value = `Circ: ${circumference.toFixed(2)} ft, Area: ${areaSqFt.toFixed(2)} sq ft / ${areaShotok.toFixed(4)} shotok`;
-                            meas.areaSqFt = areaSqFt; // Store numeric value
-                            meas.areaShotok = areaShotok; // Store numeric value
+                            meas.areaSqFt = areaSqFt;
+                            meas.areaShotok = areaShotok;
                         }
                     } else if (selectedPoint.type === 'text') {
                         // Update position for text
@@ -1594,7 +1634,7 @@
          */
         function handlePointerUp() {
             isDragging = false;
-            
+
             // If we were dragging a calibration point, clear the temporary `selectedPoint` and `currentDrawing`.
             // The actual calibration is confirmed via the button.
             if (selectedPoint && selectedPoint.type === 'calibrate' && selectedPoint.measurementIndex === -1) {
@@ -1813,9 +1853,9 @@
             canvasContainer.classList.remove('drawing-mode'); // Remove crosshair
             confirmCalibrationBtn.style.display = 'none'; // Hide confirm button on new file load
             currentPdfPage = null; // Clear previous PDF page reference
-            
+
             // Set initial scale parameters from UI inputs
-            // PIXELS_PER_INCH_CURRENT is now fixed
+            // PIXELS_PER_INCH_FIXED is now fixed
             updateScaleValues(currentScaleSetting); // Set default scale and calculate initial scaleFactorPixelsPerUnit
 
 
@@ -1842,7 +1882,7 @@
                 const reader = new FileReader();
                 reader.onload = function(event) {
                     const pdfData = new Uint8Array(event.target.result);
-                    
+
                     pdfjsLib.getDocument({ data: pdfData }).promise.then(function(pdf) {
                         outputDisplay.innerText = `PDF loaded (${pdf.numPages} pages). Rendering page 1...`;
                         return pdf.getPage(1);
@@ -1928,6 +1968,9 @@
                 case '32inch=1mile':
                     FEET_PER_INCH_CURRENT = 165;
                     break;
+                case '48inch=1mile': // নতুন স্কেল
+                    FEET_PER_INCH_CURRENT = 5280 / 48; // 1 mile = 5280 feet
+                    break;
                 case '64inch=1mile':
                     FEET_PER_INCH_CURRENT = 82.5;
                     break;
@@ -1983,7 +2026,7 @@
             if (mode === 'calibrate') {
                 mode = 'pan';
                 currentDrawing = null; // Clear current calibration line
-                confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
+                confirmCalibrationBtn.style.display = 'none';
                 outputDisplay.innerText = 'Calibration cancelled.';
                 updateModeButtons();
                 canvasContainer.classList.remove('drawing-mode');
@@ -2004,10 +2047,10 @@
             if (mode === 'calibrate' && currentDrawing && currentDrawing.points.length === 2) {
                 const [p1, p2] = currentDrawing.points;
                 const pixelDistance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                
+
                 // Prompt user for the real-world distance
                 let realWorldLength = parseFloat(prompt("Enter the real-world distance (in feet) between the two points:"));
-                
+
                 if (!isNaN(realWorldLength) && realWorldLength > 0) {
                     // Recalculate scale factor
                     scaleFactorPixelsPerUnit = pixelDistance / realWorldLength;
@@ -2016,7 +2059,7 @@
                     // Update the scale button text to reflect custom calibration
                     scaleButton.textContent = `Scale: Custom (${FEET_PER_INCH_CURRENT.toFixed(2)} ft/inch)`;
                     outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${PIXELS_PER_INCH_FIXED}).`;
-                    
+
                     // Add calibration as a measurement
                     measurements.push({
                         id: Date.now() + '-calibration',
@@ -2027,7 +2070,7 @@
                         lineStyle: currentLineStyle // Save current line style
                     });
                     saveState(); // Save state after calibration
-                    
+
                 } else {
                     outputDisplay.innerText = 'Invalid length entered. Calibration cancelled.';
                 }
@@ -2082,6 +2125,7 @@
 
         /**
          * Exports the current measurements data as a CSV file.
+         *
          */
         function exportMeasurementsAsCsv() {
             if (measurements.length === 0) {
@@ -2136,50 +2180,59 @@
         });
 
         // Event listeners for drawing tool buttons
+        // Added a function to reset drawing state when a new tool is selected
+        function resetDrawingState() {
+            if (currentDrawing && (mode === 'polygon' || mode === 'angle' || mode === 'circle' || mode === 'calibrate')) {
+                currentDrawing = null;
+                outputDisplay.innerText = 'Previous drawing cancelled.';
+            }
+            confirmCalibrationBtn.style.display = 'none'; // Always hide confirm button on tool change
+            magnifierDiv.style.display = 'none'; // Always hide magnifier on tool change
+            canvasContainer.classList.remove('drawing-mode'); // Remove crosshair
+        }
+
         drawLineBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'line';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
             outputDisplay.innerText = 'Click and drag to draw a line.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         drawRectangleBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'rectangle';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
             outputDisplay.innerText = 'Click and drag to draw a rectangle.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         drawPolygonBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'polygon';
-            currentDrawing = { type: 'polygon', points: [], closed: false };
-            confirmCalibrationBtn.style.display = 'none';
+            currentDrawing = { type: 'polygon', points: [], closed: false }; // Start new polygon
             outputDisplay.innerText = 'Click to add points for polygon. Double-click to finish.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         drawAngleBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'angle';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
+            currentDrawing = null; // Start new angle
             outputDisplay.innerText = '1: End of first arm. 2: Vertex. 3: End of second arm.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         drawCircleBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'circle';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
+            currentDrawing = null; // Start new circle
             outputDisplay.innerText = '1: Circle center. 2: Radius point.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
         });
         addTextBtn.addEventListener('click', () => {
+            resetDrawingState(); // Reset any ongoing drawing
             mode = 'text';
-            currentDrawing = null;
-            confirmCalibrationBtn.style.display = 'none';
+            currentDrawing = null; // Text is single click, but clear any previous temp drawing
             outputDisplay.innerText = 'Click on canvas to add a text note.';
             updateModeButtons();
             canvasContainer.classList.add('drawing-mode');
@@ -2259,7 +2312,7 @@
             renderMeasurementsList(); // Clear the measurements list in the sidebar
             canvasContainer.classList.remove('drawing-mode'); // Remove crosshair cursor
             confirmCalibrationBtn.style.display = 'none'; // Hide confirm button
-            
+
             // Reset scale to default
             updateScaleValues('16inch=1mile');
         });
@@ -2288,7 +2341,7 @@
                         redraw(); // Redraw canvas to reflect text change
                         saveState(); // Save state after edit
                     } else {
-                        outputDisplay.innerText = 'Text note edit cancelled.';
+                        outputDisplay.innerText = 'Text note cancelled.';
                     }
                 }
             }
@@ -2349,7 +2402,7 @@
                 } else if (mode === 'circle') {
                     activeButton = drawCircleBtn;
                 }
-                
+
                 if (activeButton) {
                     // Remove current 500 version and add the 600 version for highlighting
                     const baseClass = activeColor[mode].replace('600', '500');
@@ -2395,8 +2448,6 @@
                     // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
                     // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
-                    // Recalculate rendering scale based on new canvas dimensions
-                    const viewport = currentPdfPage.getViewport({ scale: 1 });
                     const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
@@ -2405,7 +2456,7 @@
                     const offscreenCtx = offscreenCanvas.getContext('2d');
                     offscreenCanvas.width = renderViewport.width;
                     offscreenCanvas.height = renderViewport.height;
-                    
+
                     const renderContext = {
                         canvasContext: offscreenCtx,
                         viewport: renderViewport,
@@ -2429,7 +2480,6 @@
                     // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
                     // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
-                    const viewport = currentPdfPage.getViewport({ scale: 1 });
                     const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
@@ -2438,7 +2488,7 @@
                     const offscreenCtx = offscreenCanvas.getContext('2d');
                     offscreenCanvas.width = renderViewport.width;
                     offscreenCanvas.height = renderViewport.height;
-                    
+
                     const renderContext = {
                         canvasContext: offscreenCtx,
                         viewport: renderViewport,
@@ -2460,6 +2510,20 @@
 
         // Start the animation loop. This ensures continuous redrawing for dynamic elements.
         requestAnimationFrame(redraw);
+
+        // WhatsApp Contact Button event listener (moved here to be within the tool's script)
+        document.getElementById('whatsappContact').addEventListener('click', () => {
+            const phoneNumber = '8801738724260'; // আপনার বিকাশ নম্বরের সাথে যুক্ত হোয়াটসঅ্যাপ নম্বর
+            const message = 'আমি Noksha Tool by Tofazzal এর সাবস্ক্রিপশন নিতে আগ্রহী।';
+            // Check if electronAPI is defined before calling
+            if (window.electronAPI && window.electronAPI.openWhatsApp) {
+                window.electronAPI.openWhatsApp(phoneNumber, message);
+            } else {
+                console.error("electronAPI.openWhatsApp is not available. Preload script issue?");
+                // Fallback for web version or if Electron API is not available
+                window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+            }
+        });
     </script>
 </body>
 </html>
