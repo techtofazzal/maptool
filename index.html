@@ -332,6 +332,11 @@
             />
         </label>
 
+        <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
+            Image DPI:
+            <input type="number" id="dpiInput" value="400" class="w-20" />
+        </label>
+
         <button
             id="calibrateScaleBtn"
             class="bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200"
@@ -400,9 +405,7 @@
             </div>
         </div>
 
-        <span class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700 border border-gray-300 shadow-sm">
-            Unit: ft (Feet)
-        </span>
+       
 
         <label class="flex items-center space-x-2 text-sm font-medium text-gray-700">
             Line Width:
@@ -558,8 +561,8 @@
         let currentColor = colorPicker.value; // Initialize with default color picker value
         let currentLineStyle = lineStyleSelect.value; // Initialize with default line style value
 
-        // Fixed DPI for map images
-        const PIXELS_PER_INCH_FIXED = 400;
+        // DPI and Scale variables
+        let currentDpi = 400; // Changed from const to let, renamed for clarity
         let FEET_PER_INCH_CURRENT; // This will be set by scale selection
         let scaleFactorPixelsPerUnit;
 
@@ -574,8 +577,8 @@
 
         const HIT_RADIUS_BASE = 10;
         const SNAP_RADIUS = 3;
-        const MAGNIFIER_SIZE = 200;
-        const MAGNIFIER_ZOOM = 3;
+        const MAGNIFIER_SIZE = 25;
+        const MAGNIFIER_ZOOM = 0.25;
 
 
         // Get device pixel ratio for high-DPI screens (e.g., Retina displays)
@@ -824,9 +827,38 @@
          */
         function calculateLineLength(p1, p2) {
             const lengthInPixels = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            if (!scaleFactorPixelsPerUnit || scaleFactorPixelsPerUnit === 0) {
+                return `0.00 ft / 0.00 links`;
+            }
             const lengthInFeet = lengthInPixels / scaleFactorPixelsPerUnit;
             const lengthInLinks = lengthInFeet / 0.66; // 1 link = 0.66 feet
-            return `${lengthInFeet.toFixed(2)} ft / ${lengthInLinks.toFixed(2)} links`;
+
+            // Updated custom snapping logic with new thresholds
+            let snappedLengthInLinks;
+            if (lengthInLinks <= 0) {
+                snappedLengthInLinks = 0;
+            } else {
+                const base = Math.floor(lengthInLinks / 2.5) * 2.5;
+                const index = Math.round(base / 2.5);
+                
+                let threshold;
+                // Check if the index is even or odd to determine the threshold
+                if (index % 2 === 0) { // For snap points like 70, 75, 80... the threshold is +1.35
+                    threshold = base + 1.35;
+                } else { // For snap points like 72.5, 77.5... the threshold is +1.15
+                    threshold = base + 1.15;
+                }
+
+                if (lengthInLinks >= threshold) {
+                    snappedLengthInLinks = base + 2.5;
+                } else {
+                    snappedLengthInLinks = base;
+                }
+            }
+            
+            const snappedLengthInFeet = snappedLengthInLinks * 0.66; // Convert snapped links back to feet for consistency
+
+            return `${snappedLengthInFeet.toFixed(2)} ft / ${snappedLengthInLinks.toFixed(2)} links`;
         }
 
         /**
@@ -1521,6 +1553,52 @@
                     }
                 }
             }
+            // Task 3: Check for shape move
+            if (mode === 'pan' && !selectedPoint) {
+                const clickPoint = { x, y };
+                // Iterate backwards to select the top-most shape
+                for (let i = measurements.length - 1; i >= 0; i--) {
+                    const m = measurements[i];
+                    let wasHit = false;
+
+                    if (m.type === 'line' || (m.type === 'polygon' && m.closed) || m.type === 'rectangle') {
+                        let segments = [];
+                        if (m.type === 'line') segments.push(m.points);
+                        if (m.type === 'rectangle') {
+                            const [c1, c2, c3, c4] = m.points;
+                            segments.push([c1, c2], [c2, c3], [c3, c4], [c4, c1]);
+                        }
+                        if (m.type === 'polygon') {
+                            for (let j = 0; j < m.points.length; j++) {
+                                segments.push([m.points[j], m.points[(j + 1) % m.points.length]]);
+                            }
+                        }
+
+                        for (const seg of segments) {
+                            const [p1, p2] = seg;
+                            // Check if click is near the line segment
+                            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                            const dist1 = Math.hypot(clickPoint.x - p1.x, clickPoint.y - p1.y);
+                            const dist2 = Math.hypot(clickPoint.x - p2.x, clickPoint.y - p2.y);
+                            // If sum of distances from point to ends is close to segment length, it's a hit
+                            if (Math.abs(dist1 + dist2 - dist) < (HIT_RADIUS_BASE / zoom) * 0.5) {
+                                wasHit = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (wasHit) {
+                        selectedPoint = {
+                            measurementIndex: i,
+                            type: 'move-shape', // Special type for moving
+                            initialPan: { ...pan } // Store initial pan
+                        };
+                        canvasContainer.style.cursor = 'move';
+                        return; // Exit after finding a shape to move
+                    }
+                }
+            }
         }
 
         /**
@@ -1536,6 +1614,22 @@
             let { x: currentCanvasX, y: currentCanvasY } = getSnappedCanvasCoords(e.clientX, e.clientY);
 
             if (selectedPoint) {
+                // Task 3: Handle shape move
+                if (selectedPoint.type === 'move-shape') {
+                    const deltaX = (e.clientX - startPoint.clientX) / zoom;
+                    const deltaY = (e.clientY - startPoint.clientY) / zoom;
+                    
+                    const meas = measurements[selectedPoint.measurementIndex];
+                    meas.points.forEach(p => {
+                        p.x += deltaX;
+                        p.y += deltaY;
+                    });
+                    
+                    startPoint.clientX = e.clientX;
+                    startPoint.clientY = e.clientY;
+                    renderMeasurementsList();
+                    return; // Stop further processing
+                }
                 // If a point of an existing measurement or currentDrawing is selected for editing
                 if (selectedPoint.measurementIndex !== -1) { // Editing an existing measurement
                     const meas = measurements[selectedPoint.measurementIndex];
@@ -1633,6 +1727,13 @@
          * Finalizes drawings or releases selected points.
          */
         function handlePointerUp() {
+            if (selectedPoint && selectedPoint.type === 'move-shape') {
+                saveState(); // Save state after moving the shape
+                selectedPoint = null;
+                isDragging = false;
+                canvasContainer.style.cursor = 'default'; // Reset cursor
+                return;
+            }
             isDragging = false;
 
             // If we were dragging a calibration point, clear the temporary `selectedPoint` and `currentDrawing`.
@@ -1855,7 +1956,6 @@
             currentPdfPage = null; // Clear previous PDF page reference
 
             // Set initial scale parameters from UI inputs
-            // PIXELS_PER_INCH_FIXED is now fixed
             updateScaleValues(currentScaleSetting); // Set default scale and calculate initial scaleFactorPixelsPerUnit
 
 
@@ -1888,7 +1988,7 @@
                         return pdf.getPage(1);
                     }).then(function(page) {
                         currentPdfPage = page; // Store the page object for direct rendering
-                        const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
+                        const desiredPpi = currentDpi; // Use fixed DPI for PDF rendering
                         const scale = desiredPpi / 72;
                         const viewport = page.getViewport({ scale: scale });
 
@@ -1977,7 +2077,7 @@
                 default:
                     FEET_PER_INCH_CURRENT = 330; // Fallback
             }
-            scaleFactorPixelsPerUnit = PIXELS_PER_INCH_FIXED / FEET_PER_INCH_CURRENT;
+            scaleFactorPixelsPerUnit = currentDpi / FEET_PER_INCH_CURRENT;
             scaleButton.textContent = `Scale: ${scaleSetting}`;
             outputDisplay.innerText = `Scale updated to: ${scaleSetting}.`;
 
@@ -2055,17 +2155,17 @@
                     // Recalculate scale factor
                     scaleFactorPixelsPerUnit = pixelDistance / realWorldLength;
                     // Update FEET_PER_INCH_CURRENT based on the new calibration and fixed DPI
-                    FEET_PER_INCH_CURRENT = PIXELS_PER_INCH_FIXED / scaleFactorPixelsPerUnit;
+                    FEET_PER_INCH_CURRENT = currentDpi / scaleFactorPixelsPerUnit;
                     // Update the scale button text to reflect custom calibration
                     scaleButton.textContent = `Scale: Custom (${FEET_PER_INCH_CURRENT.toFixed(2)} ft/inch)`;
-                    outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${PIXELS_PER_INCH_FIXED}).`;
+                    outputDisplay.innerText = `Scale calibrated! 1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} feet (DPI: ${currentDpi}).`;
 
                     // Add calibration as a measurement
                     measurements.push({
                         id: Date.now() + '-calibration',
                         type: 'calibration',
                         points: currentDrawing.points,
-                        value: `${realWorldLength.toFixed(2)} ft (1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} ft, DPI = ${PIXELS_PER_INCH_FIXED}).`,
+                        value: `${realWorldLength.toFixed(2)} ft (1 inch = ${FEET_PER_INCH_CURRENT.toFixed(2)} ft, DPI = ${currentDpi}).`,
                         color: currentColor, // Save current color
                         lineStyle: currentLineStyle // Save current line style
                     });
@@ -2448,7 +2548,7 @@
                     // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
                     // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
-                    const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
+                    const desiredPpi = currentDpi; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
 
@@ -2480,7 +2580,7 @@
                     // If a PDF is loaded, re-render it to adapt to new canvas size for clarity
                     // This re-rendering ensures the PDF remains crisp on resize.
                 if (currentPdfPage) {
-                    const desiredPpi = PIXELS_PER_INCH_FIXED; // Use fixed DPI for PDF rendering
+                    const desiredPpi = currentDpi; // Use fixed DPI for PDF rendering
                     const scale = desiredPpi / 72;
                     const renderViewport = currentPdfPage.getViewport({ scale: scale });
 
@@ -2522,6 +2622,19 @@
                 console.error("electronAPI.openWhatsApp is not available. Preload script issue?");
                 // Fallback for web version or if Electron API is not available
                 window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+            }
+        });
+        
+        // Task 1: Add event listener for the new DPI input
+        const dpiInput = document.getElementById('dpiInput');
+        dpiInput.addEventListener('input', (e) => {
+            const newDpi = parseInt(e.target.value, 10);
+            if (!isNaN(newDpi) && newDpi > 0) {
+                currentDpi = newDpi;
+                // Recalculate everything based on the new DPI
+                // We can call updateScaleValues with the current setting to trigger recalculation
+                updateScaleValues(currentScaleSetting);
+                outputDisplay.innerText = `DPI updated to ${currentDpi}. Measurements recalculated.`;
             }
         });
     </script>
